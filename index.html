@@ -83,10 +83,6 @@
 
   main{padding:20px 20px 60px;max-width:1000px;margin:0 auto;}
 
-  .subtabs{display:flex;gap:6px;margin-bottom:16px;background:var(--paper2);padding:5px;border-radius:12px;}
-  .subtab{flex:1;border:none;background:none;padding:10px;border-radius:9px;font-size:15px;font-weight:600;color:var(--ink-soft);}
-  .subtab.active{background:#fff;color:var(--berry-deep);box-shadow:var(--shadow);}
-
   /* ---- View header ---- */
   .viewhead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
   .viewhead h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0;}
@@ -247,7 +243,7 @@
 
 /* ============ STORAGE ============ */
 const KEY = "backstitch_db_v1";
-const blank = {products:[],packaging:[],purchases:[],orders:[],customers:[],expenses:[],offers:[],meta:{lowStock:3,lastBackup:null}};
+const blank = {products:[],purchases:[],orders:[],customers:[],expenses:[],offers:[],meta:{lowStock:3,lastBackup:null}};
 let db = load();
 
 function load(){
@@ -312,7 +308,7 @@ function totals(){
 
 /* ============ NAV / ROUTER ============ */
 const TABS = [
-  ["dashboard","Dashboard"],["orders","Orders"],["inventory","Inventory"],
+  ["dashboard","Dashboard"],["orders","Orders"],["products","Products"],
   ["purchases","Purchases"],["customers","Customers"],["expenses","Expenses"],
   ["offers","Offers"],["backup","Backup"]
 ];
@@ -323,7 +319,7 @@ function renderNav(){
 }
 function go(id){ current=id; renderNav(); render(); window.scrollTo(0,0); }
 
-function render(){ ({dashboard:vDashboard,orders:vOrders,inventory:vInventory,purchases:vPurchases,customers:vCustomers,expenses:vExpenses,offers:vOffers,backup:vBackup}[current])(); }
+function render(){ ({dashboard:vDashboard,orders:vOrders,products:vProducts,purchases:vPurchases,customers:vCustomers,expenses:vExpenses,offers:vOffers,backup:vBackup}[current])(); }
 
 function head(title,sub,btn){
   return `<div class="viewhead"><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:""}</div>${btn||""}</div>`;
@@ -413,21 +409,11 @@ function markDelivered(id){
   save(); toast("Marked delivered — stock updated"); render();
 }
 
-/* ============ INVENTORY (Products + Packaging) ============ */
-let invSub = "product";
-function setInv(s){ invSub=s; render(); }
-function vInventory(){
-  let h = head("Inventory", invSub==="product" ? "Stock = purchased − delivered" : "Boxes, bags, tags and wrap you keep on hand");
-  h += `<div class="subtabs">
-    <button class="subtab ${invSub==="product"?"active":""}" onclick="setInv('product')">Products</button>
-    <button class="subtab ${invSub==="packaging"?"active":""}" onclick="setInv('packaging')">Packaging</button>
-  </div>`;
-  h += invSub==="product" ? productsInner() : packagingInner();
-  $("#view").innerHTML = h;
-}
-function productsInner(){
-  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn" onclick="openForm('products')">＋ New product</button></div>`;
-  if(!db.products.length) return h+emptyState("Add the companions and dolls you make.",`<button class="btn" onclick="openForm('products')">＋ New product</button>`);
+/* ============ PRODUCTS ============ */
+function vProducts(){
+  const btn = `<button class="btn" onclick="openForm('products')">＋ New product</button>`;
+  let h = head("Products","Your animals and dolls · stock = purchased − delivered",btn);
+  if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add the companions and dolls you make.",`<button class="btn" onclick="openForm('products')">＋ New product</button>`); return; }
   h += [...db.products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
     const s=stockOf(p.id), pend=pendingQtyOf(p.id);
     const low = s<=db.meta.lowStock;
@@ -439,29 +425,14 @@ function productsInner(){
       <button class="iconbtn del" onclick="del('products','${p.id}')">🗑</button>
     </div></div>`;
   }).join("");
-  return h;
-}
-function packagingInner(){
-  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn" onclick="openForm('packaging')">＋ New packaging</button></div>`;
-  if(!db.packaging.length) return h+emptyState("Add packaging you buy — gift boxes, poly bags, tags, ribbon.",`<button class="btn" onclick="openForm('packaging')">＋ New packaging</button>`);
-  h += [...db.packaging].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
-    const q=Number(p.qty)||0, low=q<=db.meta.lowStock;
-    return `<div class="row"><div class="main">
-      <div class="title">${esc(p.name)} ${low?`<span class="pill low">Low</span>`:`<span class="pill ok">${q} in stock</span>`}</div>
-      <div class="meta">Buying price ${money(p.cost)}${p.notes?" · "+esc(p.notes):""}</div>
-    </div><div class="actions">
-      <button class="iconbtn" onclick="openForm('packaging','${p.id}')">✎</button>
-      <button class="iconbtn del" onclick="del('packaging','${p.id}')">🗑</button>
-    </div></div>`;
-  }).join("");
-  return h;
+  $("#view").innerHTML = h;
 }
 
 /* ============ PURCHASES ============ */
 function vPurchases(){
-  const btn = `<button class="btn" onclick="openForm('purchases')">＋ Record purchase</button>`;
+  const btn = `<button class="btn" onclick="openPurchase()">＋ Record purchase</button>`;
   let h = head("Purchases","Stock coming in from suppliers",btn);
-  if(!db.purchases.length){ $("#view").innerHTML=h+emptyState("Record stock bought from Love Crochet Art or others.",`<button class="btn" onclick="openForm('purchases')">＋ Record purchase</button>`); return; }
+  if(!db.purchases.length){ $("#view").innerHTML=h+emptyState("Record stock bought from Love Crochet Art or others.",`<button class="btn" onclick="openPurchase()">＋ Record purchase</button>`); return; }
   h += [...db.purchases].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>{
     return `<div class="row"><div class="main">
       <div class="title">${esc(productName(p.productId))} ×${p.qty}</div>
@@ -540,12 +511,6 @@ const SCHEMA = {
     {k:"price",label:"Selling price ₹",type:"number",two:true},
     {k:"notes",label:"Notes",type:"textarea"},
   ]},
-  packaging:{title:"Packaging item",fields:[
-    {k:"name",label:"Name",type:"text",req:true,ph:"Gift box / Poly bag / Tag / Ribbon"},
-    {k:"cost",label:"Buying price ₹",type:"number",two:true},
-    {k:"qty",label:"In stock",type:"number",two:true,def:()=>0},
-    {k:"notes",label:"Notes",type:"textarea"},
-  ]},
   purchases:{title:"Purchase",fields:[
     {k:"date",label:"Date",type:"date",def:today},
     {k:"productId",label:"Product",type:"product",req:true},
@@ -563,7 +528,7 @@ const SCHEMA = {
   ]},
   expenses:{title:"Expense",fields:[
     {k:"date",label:"Date",type:"date",def:today},
-    {k:"category",label:"Category",type:"select",opts:["Packaging","Shipping","Ads","Yarn / Materials","Tools","Rent","Other"]},
+    {k:"category",label:"Category",type:"select",opts:["Packaging","Shipping","Travel","Ads","Yarn / Materials","Tools","Rent","Other"]},
     {k:"amount",label:"Amount ₹",type:"number",req:true},
     {k:"notes",label:"Notes",type:"textarea"},
   ]},
@@ -744,6 +709,65 @@ function quickCustomer(){
   db.customers.push(c); save(); orderDraft.customerId=c.id; renderOrderModal(!!db.orders.find(x=>x.id===orderDraft.id)); toast("Customer added");
 }
 
+/* ============ PURCHASE FORM (multi-item) ============ */
+let purDraft=null;
+function openPurchase(){
+  purDraft={date:today(),supplier:"Love Crochet Art",notes:"",items:[{productId:"",qty:1,unitCost:""}]};
+  renderPurchaseModal();
+}
+function renderPurchaseModal(){
+  let inner=`<h3>Record purchase</h3>`;
+  inner+=`<div class="field two"><label>Date & supplier</label>
+    <input id="pu_date" type="date" value="${esc(purDraft.date)}">
+    <input id="pu_supplier" type="text" value="${esc(purDraft.supplier)}" placeholder="Supplier"></div>`;
+  inner+=`<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Items from this vendor</label>`;
+  inner+=`<div class="li-head"><span>Product</span><span>Qty</span><span>Cost ₹</span><span></span></div>`;
+  inner+=`<div id="pu_items">`+purDraft.items.map((it,i)=>puLineHTML(it,i)).join("")+`</div>`;
+  inner+=`<button class="btn ghost small" onclick="puAddLine()" style="margin:2px 0 6px">＋ Add another animal</button>`;
+  inner+=`<div class="backup-note" style="margin-bottom:14px">Tip: pick a product and its buying price fills in automatically. Add a row per animal, then save once.</div>`;
+  inner+=`<div class="field"><label>Notes (applies to all)</label><textarea id="pu_notes">${esc(purDraft.notes||"")}</textarea></div>`;
+  inner+=`<div id="pu_total" class="kv" style="font-size:17px"><span>Total spend</span><span class="amt">${money(puTotal())}</span></div>`;
+  inner+=`<div class="modal-actions" style="margin-top:14px">
+    <button class="btn neutral" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="savePurchase()">Record purchase</button></div>`;
+  showModal(inner);
+}
+function puLineHTML(it,i){
+  const opts=`<option value="">Product…</option>`+db.products.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  return `<div class="lineitem">
+    <select onchange="puLineChange(${i},'productId',this.value)">${opts}</select>
+    <input type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="puLineChange(${i},'qty',this.value)">
+    <input type="number" inputmode="decimal" value="${esc(it.unitCost)}" onchange="puLineChange(${i},'unitCost',this.value)">
+    <button class="rm" onclick="puRmLine(${i})">×</button></div>`;
+}
+function puSync(){
+  if($("#pu_date")) purDraft.date=$("#pu_date").value;
+  if($("#pu_supplier")) purDraft.supplier=$("#pu_supplier").value;
+  if($("#pu_notes")) purDraft.notes=$("#pu_notes").value;
+}
+function puLineChange(i,k,val){
+  if(k==="productId"){
+    purDraft.items[i].productId=val;
+    const p=db.products.find(x=>x.id===val);
+    if(p && (purDraft.items[i].unitCost===""||purDraft.items[i].unitCost==null)) purDraft.items[i].unitCost=p.cost;
+    puSync();
+    $("#pu_items").innerHTML=purDraft.items.map((it,idx)=>puLineHTML(it,idx)).join("");
+  } else {
+    purDraft.items[i][k]= val===""?"":Number(val);
+  }
+  if($("#pu_total")) $("#pu_total").innerHTML=`<span>Total spend</span><span class="amt">${money(puTotal())}</span>`;
+}
+function puAddLine(){ puSync(); purDraft.items.push({productId:"",qty:1,unitCost:""}); $("#pu_items").innerHTML=purDraft.items.map((it,i)=>puLineHTML(it,i)).join(""); }
+function puRmLine(i){ puSync(); purDraft.items.splice(i,1); if(!purDraft.items.length) purDraft.items.push({productId:"",qty:1,unitCost:""}); renderPurchaseModal(); }
+function puTotal(){ return purDraft.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.unitCost)||0),0); }
+function savePurchase(){
+  puSync();
+  const items=purDraft.items.filter(it=>it.productId);
+  if(!items.length){ toast("Add at least one product"); return; }
+  items.forEach(it=>db.purchases.push({id:uid(),date:purDraft.date,productId:it.productId,qty:Number(it.qty)||0,unitCost:it.unitCost===""?0:Number(it.unitCost),supplier:purDraft.supplier,notes:purDraft.notes}));
+  save(); closeModal(); toast(items.length+" item"+(items.length>1?"s":"")+" recorded"); render();
+}
+
 /* ============ DELETE ============ */
 function del(entity,id){
   if(!confirm("Delete this? This can't be undone.")) return;
@@ -758,7 +782,7 @@ $("#overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeMod
 
 /* ============ BACKUP ============ */
 function vBackup(){
-  const counts = ["products","packaging","purchases","orders","customers","expenses","offers"].map(k=>`<div class="kv"><span>${k[0].toUpperCase()+k.slice(1)}</span><span class="amt">${db[k].length}</span></div>`).join("");
+  const counts = ["products","purchases","orders","customers","expenses","offers"].map(k=>`<div class="kv"><span>${k[0].toUpperCase()+k.slice(1)}</span><span class="amt">${db[k].length}</span></div>`).join("");
   const last = db.meta.lastBackup ? new Date(db.meta.lastBackup).toLocaleString("en-IN") : "never";
   let h = head("Backup","Your data lives only on this iPad");
   h += `<div class="card" style="border-color:var(--ochre);background:#fdf6e8">
@@ -821,7 +845,6 @@ function tableCSV(name,rows,cols){
 function exportCSV(){
   let out="";
   out+=tableCSV("Products",db.products.map(p=>({name:p.name,category:p.category,buyingPrice:p.cost,sellingPrice:p.price,stock:stockOf(p.id),notes:p.notes})),["name","category","buyingPrice","sellingPrice","stock","notes"]);
-  out+=tableCSV("Packaging",db.packaging.map(p=>({name:p.name,buyingPrice:p.cost,qty:p.qty,notes:p.notes})),["name","buyingPrice","qty","notes"]);
   out+=tableCSV("Purchases",db.purchases.map(p=>({date:p.date,product:productName(p.productId),qty:p.qty,unitCost:p.unitCost,total:(Number(p.qty)||0)*(Number(p.unitCost)||0),supplier:p.supplier,notes:p.notes})),["date","product","qty","unitCost","total","supplier","notes"]);
   const orows=[]; db.orders.forEach(o=>o.items.forEach(it=>orows.push({date:o.date,customer:customerName(o.customerId),product:productName(it.productId),qty:it.qty,price:it.price,lineTotal:(Number(it.qty)||0)*(Number(it.price)||0),status:o.status,channel:o.channel})));
   out+=tableCSV("Orders",orows,["date","customer","product","qty","price","lineTotal","status","channel"]);
@@ -858,4 +881,5 @@ render();
 </script>
 </body>
 </html>
+
 
