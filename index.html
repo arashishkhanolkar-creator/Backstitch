@@ -122,6 +122,22 @@
   .lineitem .rm{border:none;background:none;color:var(--rust);font-size:20px;padding:0;}
   .li-head{display:grid;grid-template-columns:1fr 56px 78px 30px;gap:8px;font-size:11px;color:var(--ink-soft);padding:0 10px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
 
+  .pickhead{display:grid;grid-template-columns:1fr 56px 78px;gap:8px;font-size:11px;color:var(--ink-soft);padding:0 10px 4px;text-transform:uppercase;letter-spacing:.5px;}
+  .picklist{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .pickrow{display:grid;grid-template-columns:1fr 56px 78px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line-soft);}
+  .pickrow:last-child{border-bottom:none;}
+  .pickrow.on{background:#faf7f0;}
+  .pickmain{display:flex;align-items:center;gap:10px;min-width:0;font-size:15px;}
+  .pickmain input[type=checkbox]{width:22px;height:22px;flex:none;}
+  .pickmain span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pickrow .pq,.pickrow .pp{padding:8px;border:1px solid var(--line);border-radius:8px;width:100%;}
+  .piewrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
+  .pie{flex:none;}
+  .legend{flex:1;min-width:170px;}
+  .legend .lg{display:flex;align-items:center;gap:8px;font-size:14px;padding:5px 0;}
+  .legend .sw{width:12px;height:12px;border-radius:3px;flex:none;}
+  .legend .lg .amt{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink-soft);}
+
   .kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:15px;}
   .kv:last-child{border-bottom:none;}
   .kv .amt{font-weight:600;}
@@ -238,6 +254,26 @@ function totals(){
   return {spend,received,pending,balance:received-spend};
 }
 
+/* ============ PIE ============ */
+const PIE_COLORS=["#9B3B5E","#5F7D5A","#C0862B","#B04A2F","#7C2E4B","#8A8560","#4E6E8E","#A85B79"];
+function pie(data,size){
+  size=size||170;
+  const total=data.reduce((s,d)=>s+d.value,0);
+  const cx=size/2,cy=size/2,r=size/2-2;
+  if(total<=0) return "";
+  if(data.length===1) return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${data[0].color}"/></svg>`;
+  let a0=-Math.PI/2, paths="";
+  data.forEach(d=>{
+    const frac=d.value/total, a1=a0+frac*2*Math.PI;
+    const x0=(cx+r*Math.cos(a0)).toFixed(2), y0=(cy+r*Math.sin(a0)).toFixed(2);
+    const x1=(cx+r*Math.cos(a1)).toFixed(2), y1=(cy+r*Math.sin(a1)).toFixed(2);
+    const large=frac>0.5?1:0;
+    paths+=`<path d="M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z" fill="${d.color}"/>`;
+    a0=a1;
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${paths}</svg>`;
+}
+
 /* ============ NAV ============ */
 const TABS=[["home","Home"],["inventory","Inventory"],["expense","Expense"],["orders","Orders"],["ledger","Ledger"]];
 let current="home";
@@ -300,7 +336,7 @@ function vInventory(){
   let h=head("Inventory","Tap a row to edit · available = stock in − orders",btn);
   if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add your products with buying and selling price.",`<button class="btn" onclick="openProduct()">＋ Add product</button>`); return; }
   CATS.forEach(cat=>{
-    const list=db.products.filter(p=>p.category===cat).sort((a,b)=>a.name.localeCompare(b.name));
+    const list=db.products.filter(p=>p.category===cat).sort((a,b)=>(orderedQty(b.id)-orderedQty(a.id))||a.name.localeCompare(b.name));
     if(!list.length) return;
     h+=`<div class="section-label">${catLabel(cat)}</div>`;
     h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th class="num">Buying</th><th class="num">Selling</th><th class="num">Left</th></tr></thead><tbody>`;
@@ -346,6 +382,17 @@ function vExpense(){
     note:((t.items||[]).map(it=>productName(it.productId)+"×"+it.qty).join(", ")||"—")+(Number(t.shipping)?` (+${money(t.shipping)} ship)`:"")}));
   db.expenses.forEach(e=>entries.push({type:"expense",id:e.id,date:e.date,amount:Number(e.amount)||0,cat:e.category?cap(e.category):"Other",note:e.notes||"—"}));
   if(!entries.length){ $("#view").innerHTML=h+emptyState("Record a stock purchase or another cost.",`<button class="btn" onclick="openSpend()">＋ New purchase</button>`); return; }
+  const catT={};
+  db.purchases.forEach(t=>{ catT["Stock"]=(catT["Stock"]||0)+purchaseAmount(t); });
+  db.expenses.forEach(e=>{ const c=e.category?cap(e.category):"Other"; catT[c]=(catT[c]||0)+(Number(e.amount)||0); });
+  const pcats=Object.keys(catT).filter(k=>catT[k]>0).sort((a,b)=>catT[b]-catT[a]);
+  if(pcats.length){
+    const tot=pcats.reduce((s,k)=>s+catT[k],0);
+    const pdata=pcats.map((k,i)=>({label:k,value:catT[k],color:PIE_COLORS[i%PIE_COLORS.length]}));
+    h+=`<div class="card"><div class="piewrap"><div class="pie">${pie(pdata,170)}</div><div class="legend">`+
+      pdata.map(d=>`<div class="lg"><span class="sw" style="background:${d.color}"></span><span>${esc(d.label)}</span><span class="amt">${money(d.value)} · ${Math.round(d.value/tot*100)}%</span></div>`).join("")+
+      `</div></div></div>`;
+  }
   entries.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Category</th><th>Note</th><th class="num">Cost</th><th></th></tr></thead><tbody>`;
   h+=entries.map(e=>`<tr><td>${fmtShort(e.date)}</td><td>${esc(e.cat)}</td><td>${esc(e.note)}</td><td class="num">${money(e.amount)}</td>
@@ -471,7 +518,7 @@ let ordDraft=null;
 function openOrder(id){
   const o=id?db.orders.find(x=>x.id===id):null;
   ordDraft=o?structuredClone(o):{id:uid(),date:today(),customer:"",contact:"",items:[{productId:"",qty:1,price:""}],discountType:"none",discountValue:0,status:"pending"};
-  if(!ordDraft.items||!ordDraft.items.length) ordDraft.items=[{productId:"",qty:1,price:""}];
+  if(!ordDraft.items) ordDraft.items=[];
   if(ordDraft.discountType==null){ ordDraft.discountType="none"; ordDraft.discountValue=0; }
   renderOrder(!!id);
 }
@@ -481,10 +528,12 @@ function renderOrder(isEdit){
   inner+=`<div class="field two"><label>Customer</label>
     <input id="o_cust" value="${esc(ordDraft.customer||"")}" placeholder="Name">
     <input id="o_contact" value="${esc(ordDraft.contact||"")}" placeholder="Phone / @handle"></div>`;
-  inner+=`<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Order items</label>`;
-  inner+=`<div class="li-head"><span>Product</span><span>Qty</span><span>Price ₹</span><span></span></div>`;
-  inner+=`<div id="o_items">`+ordDraft.items.map((it,i)=>oLine(it,i)).join("")+`</div>`;
-  inner+=`<button class="btn ghost small" onclick="oAdd()" style="margin:2px 0 14px">＋ Add product</button>`;
+  inner+=`<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Products — tick everything they ordered</label>`;
+  if(!db.products.length) inner+=`<div class="note" style="margin-bottom:14px">Add products in the Inventory tab first.</div>`;
+  else{
+    inner+=`<div class="pickhead"><span>Product</span><span>Qty</span><span>Price</span></div>`;
+    inner+=`<div class="picklist" id="o_pick">`+db.products.map(p=>oPick(p)).join("")+`</div>`;
+  }
   const dv=ordDraft.discountType==="percent"?String(ordDraft.discountValue):(ordDraft.discountType==="flat"?"custom":"none");
   inner+=`<div class="field"><label>Offer</label><select id="o_disc" onchange="oDiscSel()">
     <option value="none" ${dv==="none"?"selected":""}>No offer</option>
@@ -507,14 +556,23 @@ function renderOrder(isEdit){
   inner+=`<button class="btn neutral" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveOrder()">${isEdit?"Save order":"Add order"}</button></div>`;
   showModal(inner);
 }
-function oLine(it,i){
-  const opts=`<option value="">Product…</option>`+db.products.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
-  return `<div class="lineitem">
-    <select onchange="oChange(${i},'productId',this.value)">${opts}</select>
-    <input type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="oChange(${i},'qty',this.value)">
-    <input type="number" inputmode="decimal" value="${esc(it.price)}" onchange="oChange(${i},'price',this.value)">
-    <button class="rm" onclick="oRm(${i})">×</button></div>`;
+function oPick(p){
+  const it=ordDraft.items.find(x=>x.productId===p.id);
+  const on=!!it;
+  return `<div class="pickrow ${on?'on':''}">
+    <label class="pickmain"><input type="checkbox" ${on?'checked':''} onchange="oToggle('${p.id}',this.checked)"><span>${esc(p.name)}</span></label>
+    ${on?`<input class="pq" type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="oItem('${p.id}','qty',this.value)">
+    <input class="pp" type="number" inputmode="decimal" value="${esc(it.price)}" onchange="oItem('${p.id}','price',this.value)">`:`<span></span><span></span>`}
+  </div>`;
 }
+function oToggle(pid,checked){
+  oSync();
+  if(checked){ if(!ordDraft.items.find(x=>x.productId===pid)){ const p=db.products.find(x=>x.id===pid); ordDraft.items.push({productId:pid,qty:1,price:p?p.price:""}); } }
+  else ordDraft.items=ordDraft.items.filter(x=>x.productId!==pid);
+  refreshPick(); oTotals();
+}
+function oItem(pid,k,val){ const it=ordDraft.items.find(x=>x.productId===pid); if(it) it[k]= val===""?"":Number(val); oTotals(); }
+function refreshPick(){ const el=$("#o_pick"); if(el) el.innerHTML=db.products.map(p=>oPick(p)).join(""); }
 function oSync(){
   if($("#o_date")) ordDraft.date=$("#o_date").value;
   if($("#o_cust")) ordDraft.customer=$("#o_cust").value;
@@ -529,17 +587,6 @@ function oSyncDiscount(){
   else { ordDraft.discountType="percent"; ordDraft.discountValue=Number(sel.value); }
 }
 function oDiscSel(){ const sel=$("#o_disc"); $("#o_customwrap").style.display= sel.value==="custom"?"block":"none"; oTotals(); }
-function oChange(i,k,val){
-  if(k==="productId"){
-    ordDraft.items[i].productId=val;
-    const p=db.products.find(x=>x.id===val);
-    if(p && (ordDraft.items[i].price===""||ordDraft.items[i].price==null)) ordDraft.items[i].price=p.price;
-    oSync(); $("#o_items").innerHTML=ordDraft.items.map((it,idx)=>oLine(it,idx)).join("");
-  } else ordDraft.items[i][k]= val===""?"":Number(val);
-  oTotals();
-}
-function oAdd(){ oSync(); ordDraft.items.push({productId:"",qty:1,price:""}); $("#o_items").innerHTML=ordDraft.items.map((it,i)=>oLine(it,i)).join(""); }
-function oRm(i){ oSync(); ordDraft.items.splice(i,1); if(!ordDraft.items.length) ordDraft.items.push({productId:"",qty:1,price:""}); renderOrder(!!db.orders.find(x=>x.id===ordDraft.id)); }
 function oSubtotal(){ return (ordDraft.items||[]).reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0); }
 function oDiscount(){ oSyncDiscount(); const sub=oSubtotal(); if(ordDraft.discountType==="percent") return Math.round(sub*(Number(ordDraft.discountValue)||0)/100); if(ordDraft.discountType==="flat") return Number(ordDraft.discountValue)||0; return 0; }
 function oTotal(){ return Math.max(0,oSubtotal()-oDiscount()); }
