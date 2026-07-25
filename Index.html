@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Backstitch</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Backstitch">
+<meta name="theme-color" content="#FAF6EF">
+<link id="favicon" rel="icon" href="data:,">
+<link id="appleicon" rel="apple-touch-icon" href="data:,">
+<style>
+  :root{
+    --paper:#FAF6EF;
+    --paper2:#F3ECE0;
+    --card:#FFFFFF;
+    --ink:#2E2620;
+    --ink-soft:#6B5F52;
+    --line:#E4D9C8;
+    --line-soft:#EFE7DA;
+    --berry:#9B3B5E;
+    --berry-deep:#7C2E4B;
+    --sage:#5F7D5A;
+    --ochre:#C0862B;
+    --rust:#B04A2F;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    --radius:14px;
+    --shadow:0 1px 0 rgba(46,38,32,.04);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:env(safe-area-inset-bottom);
+    font-size:16px;
+    line-height:1.4;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;font-size:16px;}
+
+  /* ---- Header ---- */
+  header{
+    background:var(--paper);
+    padding:calc(env(safe-area-inset-top) + 14px) 20px 0;
+    position:sticky;top:0;z-index:40;
+  }
+  .brandrow{display:flex;align-items:center;gap:12px;}
+  .mark{
+    width:38px;height:38px;border-radius:10px;flex:none;
+    background:var(--berry);position:relative;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .mark svg{width:24px;height:24px;}
+  .brand h1{
+    font-family:var(--serif);font-weight:600;font-size:24px;margin:0;letter-spacing:.3px;
+  }
+  .brand .sub{font-size:12px;color:var(--ink-soft);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+
+  /* ---- Nav ---- */
+  nav{
+    display:flex;gap:4px;overflow-x:auto;padding:14px 20px 0;
+    background:var(--paper);position:sticky;
+    top:calc(env(safe-area-inset-top) + 62px);z-index:39;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    border-bottom:1px solid var(--line);
+  }
+  nav::-webkit-scrollbar{display:none;}
+  .tab{
+    border:none;background:none;color:var(--ink-soft);
+    padding:8px 14px 14px;font-size:15px;font-weight:500;white-space:nowrap;
+    position:relative;border-radius:8px 8px 0 0;
+  }
+  .tab.active{color:var(--berry-deep);font-weight:600;}
+  .tab.active::after{
+    content:"";position:absolute;left:8px;right:8px;bottom:0;height:0;
+    border-bottom:3px dashed var(--berry);
+  }
+
+  main{padding:20px 20px 60px;max-width:1000px;margin:0 auto;}
+
+  /* ---- View header ---- */
+  .viewhead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+  .viewhead h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0;}
+  .viewhead p{margin:2px 0 0;color:var(--ink-soft);font-size:13px;}
+
+  .btn{
+    border:1px solid var(--berry);background:var(--berry);color:#fff;
+    padding:10px 16px;border-radius:10px;font-size:15px;font-weight:600;
+  }
+  .btn:active{background:var(--berry-deep);}
+  .btn.ghost{background:#fff;color:var(--berry-deep);}
+  .btn.small{padding:7px 12px;font-size:14px;}
+  .btn.wide{width:100%;justify-content:center;}
+  .btn.neutral{background:#fff;color:var(--ink);border-color:var(--line);}
+  .btn.danger{background:#fff;color:var(--rust);border-color:var(--rust);}
+
+  /* ---- Cards / list ---- */
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:12px;box-shadow:var(--shadow);
+  }
+  .row{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;
+    box-shadow:var(--shadow);
+  }
+  .row .main{flex:1;min-width:0;}
+  .row .title{font-weight:600;font-size:16px;}
+  .row .meta{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+  .row .actions{display:flex;gap:6px;flex:none;}
+  .iconbtn{
+    border:1px solid var(--line);background:#fff;border-radius:9px;
+    width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+    font-size:16px;color:var(--ink-soft);
+  }
+  .iconbtn.del{color:var(--rust);border-color:#eccfc6;}
+
+  .pill{
+    display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;
+    vertical-align:middle;
+  }
+  .pill.pending{background:#fbf0da;color:var(--ochre);}
+  .pill.delivered{background:#e7f0e5;color:var(--sage);}
+  .pill.low{background:#f7e0d9;color:var(--rust);}
+  .pill.ok{background:#e7f0e5;color:var(--sage);}
+  .pill.off{background:var(--paper2);color:var(--ink-soft);}
+
+  .amt{font-variant-numeric:tabular-nums;}
+  .pos{color:var(--sage);}
+  .neg{color:var(--rust);}
+
+  /* ---- Dashboard stats ---- */
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:8px;}
+  @media(min-width:620px){.stats{grid-template-columns:repeat(4,1fr);}}
+  .stat{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;position:relative;overflow:hidden;
+  }
+  .stat::before{
+    content:"";position:absolute;top:10px;right:12px;width:14px;height:14px;
+    border-radius:50%;border:2px dashed var(--line);
+  }
+  .stat .k{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;}
+  .stat .v{font-family:var(--serif);font-size:27px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;}
+  .stat .v.small{font-size:22px;}
+
+  .section-label{
+    font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-soft);
+    margin:26px 0 10px;display:flex;align-items:center;gap:10px;
+  }
+  .section-label::after{content:"";flex:1;border-bottom:2px dashed var(--line);}
+
+  .empty{
+    text-align:center;color:var(--ink-soft);padding:34px 16px;
+    border:2px dashed var(--line);border-radius:var(--radius);background:#fffdf9;
+  }
+  .empty .big{font-family:var(--serif);font-size:19px;color:var(--ink);margin-bottom:4px;}
+
+  /* ---- Modal ---- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(46,38,32,.45);z-index:100;
+    display:flex;align-items:flex-end;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .18s;
+    padding:0;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+  @media(min-width:620px){.overlay{align-items:center;padding:20px;}}
+  .modal{
+    background:var(--paper);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;
+    border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+    transform:translateY(20px);transition:transform .2s;-webkit-overflow-scrolling:touch;
+  }
+  @media(min-width:620px){.modal{border-radius:20px;}}
+  .overlay.show .modal{transform:translateY(0);}
+  .modal h3{font-family:var(--serif);font-size:22px;margin:0 0 16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field input,.field select,.field textarea{
+    width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;
+    background:#fff;color:var(--ink);
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--berry);outline-offset:-1px;}
+  .field textarea{min-height:64px;resize:vertical;}
+  .field.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field.two label{grid-column:1/-1;margin-bottom:0;}
+  .modal-actions{display:flex;gap:10px;margin-top:8px;}
+  .modal-actions .btn{flex:1;justify-content:center;text-align:center;}
+
+  /* order line items */
+  .lineitem{
+    background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;
+    display:grid;grid-template-columns:1fr 60px 78px 34px;gap:8px;align-items:center;
+  }
+  .lineitem select,.lineitem input{padding:9px;border:1px solid var(--line);border-radius:9px;width:100%;}
+  .lineitem .rm{border:none;background:none;color:var(--rust);font-size:20px;padding:0;}
+  .li-head{display:grid;grid-template-columns:1fr 60px 78px 34px;gap:8px;font-size:11px;color:var(--ink-soft);padding:0 10px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
+
+  .toast{
+    position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;
+    z-index:200;opacity:0;transition:.25s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.2);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .backup-note{font-size:13px;color:var(--ink-soft);line-height:1.6;}
+  .kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:15px;}
+  .kv:last-child{border-bottom:none;}
+  .kv .amt{font-weight:600;}
+  details.help{margin-top:10px;}
+  details.help summary{font-weight:600;color:var(--berry-deep);cursor:pointer;padding:6px 0;}
+  details.help ol{margin:6px 0 0;padding-left:20px;line-height:1.7;font-size:14px;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<header>
+  <div class="brandrow">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+        <path d="M3 8 L8 12 L3 16" stroke-dasharray="1 3"/>
+        <path d="M6 12 L21 12" stroke-dasharray="3 3"/>
+        <circle cx="18" cy="12" r="3.2" fill="#fff" stroke="none"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <h1>Backstitch</h1>
+      <div class="sub">Studio Ledger</div>
+    </div>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="view"></main>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============ STORAGE ============ */
+const KEY = "backstitch_db_v1";
+const blank = {products:[],purchases:[],orders:[],customers:[],expenses:[],offers:[],meta:{lowStock:3,lastBackup:null}};
+let db = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return structuredClone(blank);
+    const d = JSON.parse(raw);
+    for(const k in blank) if(!(k in d)) d[k]= Array.isArray(blank[k])?[]:structuredClone(blank[k]);
+    if(!d.meta) d.meta = structuredClone(blank.meta);
+    if(d.meta.lowStock==null) d.meta.lowStock = 3;
+    return d;
+  }catch(e){ console.error(e); return structuredClone(blank); }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ alert("Could not save — storage may be full or blocked. Please export a backup."); }
+}
+const uid = ()=> (Date.now().toString(36) + Math.random().toString(36).slice(2,7));
+
+/* ============ HELPERS ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => "₹"+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const today = ()=> new Date().toISOString().slice(0,10);
+const fmtDate = d => d? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}) : "";
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
+
+function productName(id){ const p=db.products.find(x=>x.id===id); return p?p.name:"(deleted product)"; }
+function customerName(id){ const c=db.customers.find(x=>x.id===id); return c?c.name:"Walk-in"; }
+
+/* ============ DERIVED CALCS ============ */
+function stockOf(pid){
+  let inQty=0,out=0;
+  for(const pu of db.purchases) if(pu.productId===pid) inQty+=Number(pu.qty)||0;
+  for(const o of db.orders) if(o.status==="delivered") for(const it of o.items) if(it.productId===pid) out+=Number(it.qty)||0;
+  return inQty-out;
+}
+function pendingQtyOf(pid){
+  let q=0;
+  for(const o of db.orders) if(o.status==="pending") for(const it of o.items) if(it.productId===pid) q+=Number(it.qty)||0;
+  return q;
+}
+const orderTotal = o => o.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0);
+function orderCOGS(o){ return o.items.reduce((s,it)=>{const p=db.products.find(x=>x.id===it.productId);return s+(Number(it.qty)||0)*(p?Number(p.cost)||0:0);},0); }
+
+function totals(){
+  let delivRev=0,pendRev=0,delivCogs=0;
+  for(const o of db.orders){
+    if(o.status==="delivered"){ delivRev+=orderTotal(o); delivCogs+=orderCOGS(o); }
+    else pendRev+=orderTotal(o);
+  }
+  const purchaseSpend = db.purchases.reduce((s,p)=>s+(Number(p.qty)||0)*(Number(p.unitCost)||0),0);
+  const expenseSpend = db.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const pendingOrders = db.orders.filter(o=>o.status==="pending").length;
+  const lowStock = db.products.filter(p=>stockOf(p.id)<=db.meta.lowStock);
+  return {delivRev,pendRev,delivCogs,purchaseSpend,expenseSpend,
+    net: delivRev-purchaseSpend-expenseSpend,
+    grossMargin: delivRev-delivCogs,
+    pendingOrders, lowStock};
+}
+
+/* ============ NAV / ROUTER ============ */
+const TABS = [
+  ["dashboard","Dashboard"],["orders","Orders"],["products","Products"],
+  ["purchases","Purchases"],["customers","Customers"],["expenses","Expenses"],
+  ["offers","Offers"],["backup","Backup"]
+];
+let current = "dashboard";
+function renderNav(){
+  $("#nav").innerHTML = TABS.map(([id,label])=>
+    `<button class="tab ${id===current?'active':''}" onclick="go('${id}')">${label}</button>`).join("");
+}
+function go(id){ current=id; renderNav(); render(); window.scrollTo(0,0); }
+
+function render(){ ({dashboard:vDashboard,orders:vOrders,products:vProducts,purchases:vPurchases,customers:vCustomers,expenses:vExpenses,offers:vOffers,backup:vBackup}[current])(); }
+
+function head(title,sub,btn){
+  return `<div class="viewhead"><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:""}</div>${btn||""}</div>`;
+}
+function emptyState(msg,cta){
+  return `<div class="empty"><div class="big">Nothing here yet</div><div>${msg}</div>${cta?`<div style="margin-top:14px">${cta}</div>`:""}</div>`;
+}
+
+/* ============ DASHBOARD ============ */
+function vDashboard(){
+  const t = totals();
+  const pend = db.orders.filter(o=>o.status==="pending").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  let h = head("Dashboard","Live snapshot of the studio");
+  h += `<div class="stats">
+    <div class="stat"><div class="k">Delivered revenue</div><div class="v">${money(t.delivRev)}</div></div>
+    <div class="stat"><div class="k">Pending revenue</div><div class="v small">${money(t.pendRev)}</div></div>
+    <div class="stat"><div class="k">Total spent</div><div class="v small">${money(t.purchaseSpend+t.expenseSpend)}</div></div>
+    <div class="stat"><div class="k">Net (rev − spend)</div><div class="v small ${t.net>=0?'pos':'neg'}">${money(t.net)}</div></div>
+  </div>`;
+  h += `<div class="stats" style="margin-top:0">
+    <div class="stat"><div class="k">Pending orders</div><div class="v small">${t.pendingOrders}</div></div>
+    <div class="stat"><div class="k">Products</div><div class="v small">${db.products.length}</div></div>
+    <div class="stat"><div class="k">Customers</div><div class="v small">${db.customers.length}</div></div>
+    <div class="stat"><div class="k">Low stock</div><div class="v small ${t.lowStock.length?'neg':''}">${t.lowStock.length}</div></div>
+  </div>`;
+
+  h += `<div class="section-label">Pending orders</div>`;
+  if(!pend.length) h += `<div class="card backup-note">No pending orders. All caught up.</div>`;
+  else h += pend.slice(0,8).map(o=>{
+    const items = o.items.map(it=>`${esc(productName(it.productId))} ×${it.qty}`).join(", ");
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(customerName(o.customerId))} <span class="pill pending">Pending</span></div>
+      <div class="meta">${items||"—"} · ${money(orderTotal(o))} · ${fmtDate(o.date)}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="markDelivered('${o.id}')" title="Mark delivered">✓</button>
+      <button class="iconbtn" onclick="openOrder('${o.id}')">✎</button>
+    </div></div>`;
+  }).join("");
+
+  h += `<div class="section-label">Low stock (≤ ${db.meta.lowStock})</div>`;
+  if(!t.lowStock.length) h += `<div class="card backup-note">Stock levels look healthy.</div>`;
+  else h += t.lowStock.map(p=>{
+    const s=stockOf(p.id), pend=pendingQtyOf(p.id);
+    return `<div class="row"><div class="main"><div class="title">${esc(p.name)}</div>
+      <div class="meta">Stock <b class="${s<=0?'neg':''}">${s}</b>${pend?` · ${pend} awaiting delivery`:""}</div></div>
+      <div class="actions"><button class="iconbtn" onclick="go('purchases')" title="Add stock">＋</button></div></div>`;
+  }).join("");
+
+  if(backupOverdue()) h = backupBanner()+h;
+  $("#view").innerHTML = h;
+}
+
+function backupOverdue(){
+  const hasData = db.orders.length||db.products.length||db.purchases.length;
+  if(!hasData) return false;
+  if(!db.meta.lastBackup) return true;
+  return (Date.now()-db.meta.lastBackup) > 7*24*3600*1000;
+}
+function backupBanner(){
+  return `<div class="card" style="border-color:var(--ochre);background:#fdf6e8">
+    <b>Time to back up.</b> <span class="backup-note">Your data lives only on this iPad. Export a backup and drop it in iCloud Drive.</span>
+    <div style="margin-top:10px"><button class="btn small" onclick="go('backup')">Go to backup</button></div></div>`;
+}
+
+/* ============ ORDERS ============ */
+function vOrders(){
+  const btn = `<button class="btn" onclick="openOrder()">＋ New order</button>`;
+  let h = head("Orders","Stock and revenue move only when delivered",btn);
+  const list = [...db.orders].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!list.length){ $("#view").innerHTML=h+emptyState("Log your first order — pending or delivered.",`<button class="btn" onclick="openOrder()">＋ New order</button>`); return; }
+  h += list.map(o=>{
+    const items = o.items.map(it=>`${esc(productName(it.productId))} ×${it.qty}`).join(", ");
+    const deliverBtn = o.status==="pending" ? `<button class="iconbtn" onclick="markDelivered('${o.id}')" title="Mark delivered">✓</button>` : "";
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(customerName(o.customerId))} <span class="pill ${o.status}">${o.status==="delivered"?"Delivered":"Pending"}</span></div>
+      <div class="meta">${items||"—"} · <b>${money(orderTotal(o))}</b> · ${fmtDate(o.date)}${o.channel?` · ${esc(o.channel)}`:""}</div>
+    </div><div class="actions">${deliverBtn}
+      <button class="iconbtn" onclick="openOrder('${o.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('orders','${o.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+function markDelivered(id){
+  const o = db.orders.find(x=>x.id===id); if(!o) return;
+  o.status="delivered"; if(!o.deliveryDate) o.deliveryDate=today();
+  save(); toast("Marked delivered — stock updated"); render();
+}
+
+/* ============ PRODUCTS ============ */
+function vProducts(){
+  const btn = `<button class="btn" onclick="openForm('products')">＋ New product</button>`;
+  let h = head("Products","Stock = purchased − delivered",btn);
+  if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add the companions and dolls you make.",`<button class="btn" onclick="openForm('products')">＋ New product</button>`); return; }
+  h += [...db.products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
+    const s=stockOf(p.id), pend=pendingQtyOf(p.id);
+    const low = s<=db.meta.lowStock;
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(p.name)} ${low?`<span class="pill low">Low</span>`:`<span class="pill ok">${s} in stock</span>`}</div>
+      <div class="meta">${p.category?esc(p.category)+" · ":""}Cost ${money(p.cost)} · Sells ${money(p.price)}${pend?` · <b>${pend}</b> awaiting delivery`:""}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('products','${p.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('products','${p.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+
+/* ============ PURCHASES ============ */
+function vPurchases(){
+  const btn = `<button class="btn" onclick="openForm('purchases')">＋ Record purchase</button>`;
+  let h = head("Purchases","Stock coming in from suppliers",btn);
+  if(!db.purchases.length){ $("#view").innerHTML=h+emptyState("Record stock bought from Love Crochet Art or others.",`<button class="btn" onclick="openForm('purchases')">＋ Record purchase</button>`); return; }
+  h += [...db.purchases].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(p=>{
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(productName(p.productId))} ×${p.qty}</div>
+      <div class="meta">${money((Number(p.qty)||0)*(Number(p.unitCost)||0))} total · ${money(p.unitCost)}/unit · ${esc(p.supplier||"")} · ${fmtDate(p.date)}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('purchases','${p.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('purchases','${p.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+
+/* ============ CUSTOMERS ============ */
+function vCustomers(){
+  const btn = `<button class="btn" onclick="openForm('customers')">＋ New customer</button>`;
+  let h = head("Customers","Everyone who's ordered",btn);
+  if(!db.customers.length){ $("#view").innerHTML=h+emptyState("Add customers to link them to orders.",`<button class="btn" onclick="openForm('customers')">＋ New customer</button>`); return; }
+  h += [...db.customers].sort((a,b)=>a.name.localeCompare(b.name)).map(c=>{
+    const orders = db.orders.filter(o=>o.customerId===c.id);
+    const spent = orders.filter(o=>o.status==="delivered").reduce((s,o)=>s+orderTotal(o),0);
+    const contact = [c.instagram, c.phone].filter(Boolean).join(" · ");
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(c.name)}</div>
+      <div class="meta">${contact?esc(contact)+" · ":""}${orders.length} order${orders.length!==1?"s":""} · ${money(spent)} delivered</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('customers','${c.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('customers','${c.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+
+/* ============ EXPENSES ============ */
+function vExpenses(){
+  const btn = `<button class="btn" onclick="openForm('expenses')">＋ Add expense</button>`;
+  let h = head("Expenses","Non-stock costs — packaging, ads, shipping",btn);
+  if(!db.expenses.length){ $("#view").innerHTML=h+emptyState("Track costs that aren't stock purchases.",`<button class="btn" onclick="openForm('expenses')">＋ Add expense</button>`); return; }
+  const total = db.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  h += `<div class="card"><div class="kv"><span>Total expenses</span><span class="amt">${money(total)}</span></div></div>`;
+  h += [...db.expenses].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(e=>{
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(e.category||"Expense")} — ${money(e.amount)}</div>
+      <div class="meta">${e.notes?esc(e.notes)+" · ":""}${fmtDate(e.date)}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('expenses','${e.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('expenses','${e.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+
+/* ============ OFFERS ============ */
+function vOffers(){
+  const btn = `<button class="btn" onclick="openForm('offers')">＋ New offer</button>`;
+  let h = head("Offers","Discount codes and campaigns",btn);
+  if(!db.offers.length){ $("#view").innerHTML=h+emptyState("Save the discount codes you run.",`<button class="btn" onclick="openForm('offers')">＋ New offer</button>`); return; }
+  h += db.offers.map(o=>{
+    const val = o.type==="percent" ? `${o.value}% off` : `${money(o.value)} off`;
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(o.code||"Offer")} <span class="pill ${o.active?'ok':'off'}">${o.active?"Active":"Off"}</span></div>
+      <div class="meta">${val}${o.description?" · "+esc(o.description):""}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('offers','${o.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('offers','${o.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  $("#view").innerHTML = h;
+}
+
+/* ============ GENERIC FORMS ============ */
+const SCHEMA = {
+  products:{title:"Product",fields:[
+    {k:"name",label:"Name",type:"text",req:true},
+    {k:"category",label:"Category",type:"text",ph:"Animal / Doll / Flower / Keychain"},
+    {k:"cost",label:"Cost price ₹",type:"number",two:true},
+    {k:"price",label:"Selling price ₹",type:"number",two:true},
+    {k:"notes",label:"Notes",type:"textarea"},
+  ]},
+  purchases:{title:"Purchase",fields:[
+    {k:"date",label:"Date",type:"date",def:today},
+    {k:"productId",label:"Product",type:"product",req:true},
+    {k:"qty",label:"Quantity",type:"number",two:true,def:()=>1},
+    {k:"unitCost",label:"Cost per unit ₹",type:"number",two:true},
+    {k:"supplier",label:"Supplier",type:"text",def:()=>"Love Crochet Art"},
+    {k:"notes",label:"Notes",type:"textarea"},
+  ]},
+  customers:{title:"Customer",fields:[
+    {k:"name",label:"Name",type:"text",req:true},
+    {k:"instagram",label:"Instagram",type:"text",ph:"@handle",two:true},
+    {k:"phone",label:"Phone / WhatsApp",type:"text",two:true},
+    {k:"address",label:"Address",type:"textarea"},
+    {k:"notes",label:"Notes",type:"textarea"},
+  ]},
+  expenses:{title:"Expense",fields:[
+    {k:"date",label:"Date",type:"date",def:today},
+    {k:"category",label:"Category",type:"select",opts:["Packaging","Shipping","Ads","Yarn / Materials","Tools","Rent","Other"]},
+    {k:"amount",label:"Amount ₹",type:"number",req:true},
+    {k:"notes",label:"Notes",type:"textarea"},
+  ]},
+  offers:{title:"Offer",fields:[
+    {k:"code",label:"Code / name",type:"text",req:true,ph:"FESTIVE10"},
+    {k:"type",label:"Type",type:"select",opts:[["percent","Percentage %"],["flat","Flat ₹"]],two:true},
+    {k:"value",label:"Value",type:"number",two:true},
+    {k:"description",label:"Description",type:"text"},
+    {k:"active",label:"Active",type:"checkbox",def:()=>true},
+  ]},
+};
+
+let editing = {entity:null,id:null};
+function openForm(entity,id){
+  editing={entity,id:id||null};
+  const sc = SCHEMA[entity];
+  const rec = id ? db[entity].find(x=>x.id===id) : {};
+  let inner = `<h3>${id?"Edit":"New"} ${sc.title.toLowerCase()}</h3>`;
+  sc.fields.forEach(f=>{
+    let v = rec[f.k];
+    if(v==null && !id && f.def) v = f.def();
+    if(v==null) v="";
+    inner += fieldHTML(f,v);
+  });
+  inner += `<div class="modal-actions">
+    <button class="btn neutral" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="saveForm()">${id?"Save":"Add"}</button></div>`;
+  showModal(inner);
+}
+
+function fieldHTML(f,v){
+  const id="f_"+f.k;
+  if(f.type==="textarea") return `<div class="field"><label for="${id}">${f.label}</label><textarea id="${id}">${esc(v)}</textarea></div>`;
+  if(f.type==="checkbox") return `<div class="field"><label style="display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink)"><input type="checkbox" id="${id}" ${v?"checked":""} style="width:auto"> ${f.label}</label></div>`;
+  if(f.type==="select"){
+    const opts=f.opts.map(o=>{const val=Array.isArray(o)?o[0]:o;const lab=Array.isArray(o)?o[1]:o;return `<option value="${esc(val)}" ${String(v)===String(val)?"selected":""}>${esc(lab)}</option>`;}).join("");
+    return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${opts}</select></div>`;
+  }
+  if(f.type==="product"){
+    const opts=`<option value="">Select product…</option>`+db.products.map(p=>`<option value="${p.id}" ${v===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+    return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${opts}</select></div>`;
+  }
+  const cls = f.two?"field two":"field";
+  const t = f.type==="number"?`inputmode="decimal"`:"";
+  return `<div class="${cls}"><label for="${id}">${f.label}</label><input id="${id}" type="${f.type}" ${t} value="${esc(v)}" placeholder="${esc(f.ph||"")}"></div>`;
+}
+
+function saveForm(){
+  const {entity,id}=editing; const sc=SCHEMA[entity]; const rec = id? db[entity].find(x=>x.id===id) : {id:uid()};
+  for(const f of sc.fields){
+    const el=$("#f_"+f.k); if(!el) continue;
+    let val = f.type==="checkbox"? el.checked : el.value.trim();
+    if(f.type==="number") val = el.value===""?"":Number(el.value);
+    if(f.req && (val===""||val==null)){ toast("Please fill in "+f.label); el.focus(); return; }
+    rec[f.k]=val;
+  }
+  if(!id) db[entity].push(rec);
+  save(); closeModal(); toast(id?"Saved":sc.title+" added"); render();
+}
+
+/* ============ ORDER FORM (special) ============ */
+let orderDraft=null;
+function openOrder(id){
+  const o = id? db.orders.find(x=>x.id===id) : null;
+  orderDraft = o ? structuredClone(o) : {id:uid(),date:today(),customerId:"",channel:"Instagram",status:"pending",items:[],notes:""};
+  if(!orderDraft.items.length) orderDraft.items.push({productId:"",qty:1,price:""});
+  renderOrderModal(!!id);
+}
+function renderOrderModal(isEdit){
+  const custOpts = `<option value="">Walk-in / unlisted</option>`+db.customers.map(c=>`<option value="${c.id}" ${orderDraft.customerId===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
+  let inner = `<h3>${isEdit?"Edit":"New"} order</h3>`;
+  inner += `<div class="field two"><label>Date & status</label>
+    <input id="o_date" type="date" value="${esc(orderDraft.date)}">
+    <select id="o_status">
+      <option value="pending" ${orderDraft.status==="pending"?"selected":""}>Pending</option>
+      <option value="delivered" ${orderDraft.status==="delivered"?"selected":""}>Delivered</option>
+    </select></div>`;
+  inner += `<div class="field"><label>Customer</label><select id="o_customer">${custOpts}</select>
+    <div style="margin-top:8px"><button class="btn ghost small" onclick="quickCustomer()">＋ Add new customer</button></div></div>`;
+  inner += `<div class="field"><label>Channel</label><select id="o_channel">
+    ${["Instagram","WhatsApp","Referral","Other"].map(c=>`<option ${orderDraft.channel===c?"selected":""}>${c}</option>`).join("")}</select></div>`;
+
+  inner += `<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Items</label>`;
+  inner += `<div class="li-head"><span>Product</span><span>Qty</span><span>Price ₹</span><span></span></div>`;
+  inner += `<div id="lineitems">`+orderDraft.items.map((it,i)=>lineItemHTML(it,i)).join("")+`</div>`;
+  inner += `<button class="btn ghost small" onclick="addLine()" style="margin:2px 0 14px">＋ Add item</button>`;
+  inner += `<div class="field"><label>Notes</label><textarea id="o_notes">${esc(orderDraft.notes||"")}</textarea></div>`;
+  inner += `<div id="o_total" class="kv" style="font-size:17px"><span>Order total</span><span class="amt">${money(draftTotal())}</span></div>`;
+  inner += `<div class="modal-actions" style="margin-top:14px">
+    <button class="btn neutral" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="saveOrder()">${isEdit?"Save order":"Add order"}</button></div>`;
+  showModal(inner);
+}
+function lineItemHTML(it,i){
+  const opts=`<option value="">Product…</option>`+db.products.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  return `<div class="lineitem">
+    <select onchange="lineChange(${i},'productId',this.value)">${opts}</select>
+    <input type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="lineChange(${i},'qty',this.value)">
+    <input type="number" inputmode="decimal" value="${esc(it.price)}" onchange="lineChange(${i},'price',this.value)">
+    <button class="rm" onclick="rmLine(${i})">×</button></div>`;
+}
+function syncDraftFromDom(){
+  if($("#o_date")) orderDraft.date=$("#o_date").value;
+  if($("#o_status")) orderDraft.status=$("#o_status").value;
+  if($("#o_customer")) orderDraft.customerId=$("#o_customer").value;
+  if($("#o_channel")) orderDraft.channel=$("#o_channel").value;
+  if($("#o_notes")) orderDraft.notes=$("#o_notes").value;
+}
+function lineChange(i,k,val){
+  if(k==="productId"){
+    orderDraft.items[i].productId=val;
+    const p=db.products.find(x=>x.id===val);
+    if(p && (orderDraft.items[i].price===""||orderDraft.items[i].price==null)) orderDraft.items[i].price=p.price;
+  } else orderDraft.items[i][k]= val===""?"":Number(val);
+  $("#o_total").innerHTML=`<span>Order total</span><span class="amt">${money(draftTotal())}</span>`;
+  if(k==="productId"){ syncDraftFromDom(); $("#lineitems").innerHTML=orderDraft.items.map((it,idx)=>lineItemHTML(it,idx)).join(""); }
+}
+function addLine(){ syncDraftFromDom(); orderDraft.items.push({productId:"",qty:1,price:""}); $("#lineitems").innerHTML=orderDraft.items.map((it,i)=>lineItemHTML(it,i)).join(""); }
+function rmLine(i){ syncDraftFromDom(); orderDraft.items.splice(i,1); if(!orderDraft.items.length) orderDraft.items.push({productId:"",qty:1,price:""}); renderOrderModal(!!db.orders.find(x=>x.id===orderDraft.id)); }
+function draftTotal(){ return orderDraft.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0); }
+function saveOrder(){
+  syncDraftFromDom();
+  orderDraft.items = orderDraft.items.filter(it=>it.productId);
+  if(!orderDraft.items.length){ toast("Add at least one product"); return; }
+  if(orderDraft.status==="delivered" && !orderDraft.deliveryDate) orderDraft.deliveryDate=orderDraft.date;
+  const existing = db.orders.find(x=>x.id===orderDraft.id);
+  if(existing) Object.assign(existing,orderDraft); else db.orders.push(orderDraft);
+  save(); closeModal(); toast(existing?"Order saved":"Order added"); render();
+}
+function quickCustomer(){
+  syncDraftFromDom();
+  const name = prompt("New customer name:");
+  if(!name) return;
+  const c={id:uid(),name:name.trim(),instagram:"",phone:"",address:"",notes:""};
+  db.customers.push(c); save(); orderDraft.customerId=c.id; renderOrderModal(!!db.orders.find(x=>x.id===orderDraft.id)); toast("Customer added");
+}
+
+/* ============ DELETE ============ */
+function del(entity,id){
+  if(!confirm("Delete this? This can't be undone.")) return;
+  db[entity]=db[entity].filter(x=>x.id!==id);
+  save(); toast("Deleted"); render();
+}
+
+/* ============ MODAL PLUMBING ============ */
+function showModal(html){ $("#modal").innerHTML=html; $("#overlay").classList.add("show"); }
+function closeModal(){ $("#overlay").classList.remove("show"); }
+$("#overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeModal(); });
+
+/* ============ BACKUP ============ */
+function vBackup(){
+  const counts = ["products","purchases","orders","customers","expenses","offers"].map(k=>`<div class="kv"><span>${k[0].toUpperCase()+k.slice(1)}</span><span class="amt">${db[k].length}</span></div>`).join("");
+  const last = db.meta.lastBackup ? new Date(db.meta.lastBackup).toLocaleString("en-IN") : "never";
+  let h = head("Backup","Your data lives only on this iPad");
+  h += `<div class="card" style="border-color:var(--ochre);background:#fdf6e8">
+    <div class="backup-note"><b>Read this once.</b> Everything you enter is stored inside this iPad, not on the internet. If iPadOS clears the app's storage (rare, but it can happen if the app goes unused for a long time or storage runs very low), the data goes with it. A weekly export to iCloud Drive keeps you safe.</div></div>`;
+  h += `<div class="card">${counts}<div class="kv"><span>Last backup</span><span>${last}</span></div></div>`;
+  h += `<button class="btn wide" onclick="exportJSON()" style="margin-bottom:10px">⬇︎ Export backup (.json)</button>`;
+  h += `<button class="btn neutral wide" onclick="$('#importfile').click()" style="margin-bottom:10px">⬆︎ Restore from backup</button>`;
+  h += `<input type="file" id="importfile" accept="application/json,.json" style="display:none" onchange="importJSON(event)">`;
+  h += `<div class="section-label">Spreadsheet export</div>`;
+  h += `<button class="btn ghost wide" onclick="exportCSV()" style="margin-bottom:10px">⬇︎ Export all as CSV (for Sheets/Excel)</button>`;
+  h += `<details class="help"><summary>How to back up on iPad — step by step</summary><ol>
+    <li>Tap <b>Export backup</b> above.</li>
+    <li>In the share sheet, choose <b>Save to Files</b>.</li>
+    <li>Pick <b>iCloud Drive</b> (or a Backstitch folder there) and tap Save.</li>
+    <li>Do this weekly. To restore later, tap <b>Restore from backup</b> and pick the newest file.</li>
+  </ol></details>`;
+  h += `<div class="section-label">Settings</div>`;
+  h += `<div class="card"><div class="field two" style="margin:0"><label>Low-stock alert when stock is at or below</label>
+    <input type="number" id="lowset" value="${db.meta.lowStock}" inputmode="numeric">
+    <button class="btn small" onclick="saveLow()">Save</button></div></div>`;
+  h += `<button class="btn danger wide" onclick="wipe()" style="margin-top:16px">Erase all data</button>`;
+  $("#view").innerHTML=h;
+}
+function saveLow(){ const v=Number($("#lowset").value); if(!isNaN(v)){ db.meta.lowStock=v; save(); toast("Saved"); } }
+
+function download(filename,text,type){
+  const blob=new Blob([text],{type:type||"application/octet-stream"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+}
+function exportJSON(){
+  const stamp=new Date().toISOString().slice(0,10);
+  download(`backstitch-backup-${stamp}.json`, JSON.stringify(db,null,2), "application/json");
+  db.meta.lastBackup=Date.now(); save(); toast("Backup exported"); render();
+}
+function importJSON(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const data=JSON.parse(r.result);
+      if(!data || typeof data!=="object" || !("products" in data) || !("orders" in data)) throw new Error("bad");
+      if(!confirm("Restore will replace ALL current data with the backup. Continue?")) return;
+      db=data;
+      for(const k in blank) if(!(k in db)) db[k]=Array.isArray(blank[k])?[]:structuredClone(blank[k]);
+      if(!db.meta) db.meta=structuredClone(blank.meta);
+      save(); toast("Backup restored"); render();
+    }catch(e){ alert("That file doesn't look like a Backstitch backup."); }
+    ev.target.value="";
+  };
+  r.readAsText(file);
+}
+function csvCell(v){ v=v==null?"":String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function tableCSV(name,rows,cols){
+  let out=`# ${name}\n`+cols.join(",")+"\n";
+  out+=rows.map(r=>cols.map(c=>csvCell(r[c])).join(",")).join("\n");
+  return out+"\n\n";
+}
+function exportCSV(){
+  let out="";
+  out+=tableCSV("Products",db.products.map(p=>({name:p.name,category:p.category,cost:p.cost,price:p.price,stock:stockOf(p.id),notes:p.notes})),["name","category","cost","price","stock","notes"]);
+  out+=tableCSV("Purchases",db.purchases.map(p=>({date:p.date,product:productName(p.productId),qty:p.qty,unitCost:p.unitCost,total:(Number(p.qty)||0)*(Number(p.unitCost)||0),supplier:p.supplier,notes:p.notes})),["date","product","qty","unitCost","total","supplier","notes"]);
+  const orows=[]; db.orders.forEach(o=>o.items.forEach(it=>orows.push({date:o.date,customer:customerName(o.customerId),product:productName(it.productId),qty:it.qty,price:it.price,lineTotal:(Number(it.qty)||0)*(Number(it.price)||0),status:o.status,channel:o.channel})));
+  out+=tableCSV("Orders",orows,["date","customer","product","qty","price","lineTotal","status","channel"]);
+  out+=tableCSV("Customers",db.customers.map(c=>({name:c.name,instagram:c.instagram,phone:c.phone,address:c.address,notes:c.notes})),["name","instagram","phone","address","notes"]);
+  out+=tableCSV("Expenses",db.expenses.map(e=>({date:e.date,category:e.category,amount:e.amount,notes:e.notes})),["date","category","amount","notes"]);
+  const stamp=new Date().toISOString().slice(0,10);
+  download(`backstitch-data-${stamp}.csv`, out, "text/csv");
+  toast("CSV exported");
+}
+function wipe(){
+  if(!confirm("Erase EVERYTHING on this device? Export a backup first if unsure.")) return;
+  if(!confirm("Are you absolutely sure? This cannot be undone.")) return;
+  db=structuredClone(blank); save(); toast("All data erased"); render();
+}
+
+/* ============ APP ICON (generated) ============ */
+function makeIcon(){
+  try{
+    const c=document.createElement("canvas"); c.width=c.height=180; const x=c.getContext("2d");
+    x.fillStyle="#9B3B5E"; x.fillRect(0,0,180,180);
+    x.strokeStyle="#FAF6EF"; x.lineWidth=11; x.lineCap="round";
+    x.setLineDash([2,16]); x.beginPath(); x.moveTo(34,60); x.lineTo(70,90); x.lineTo(34,120); x.stroke();
+    x.setLineDash([16,16]); x.beginPath(); x.moveTo(56,90); x.lineTo(150,90); x.stroke();
+    x.setLineDash([]); x.fillStyle="#FAF6EF"; x.beginPath(); x.arc(132,90,22,0,7); x.fill();
+    const url=c.toDataURL("image/png");
+    $("#appleicon").href=url; $("#favicon").href=url;
+  }catch(e){}
+}
+
+/* ============ BOOT ============ */
+makeIcon();
+renderNav();
+render();
+</script>
+</body>
+</html>
