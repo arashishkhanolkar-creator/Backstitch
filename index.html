@@ -83,6 +83,10 @@
 
   main{padding:20px 20px 60px;max-width:1000px;margin:0 auto;}
 
+  .subtabs{display:flex;gap:6px;margin-bottom:16px;background:var(--paper2);padding:5px;border-radius:12px;}
+  .subtab{flex:1;border:none;background:none;padding:10px;border-radius:9px;font-size:15px;font-weight:600;color:var(--ink-soft);}
+  .subtab.active{background:#fff;color:var(--berry-deep);box-shadow:var(--shadow);}
+
   /* ---- View header ---- */
   .viewhead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
   .viewhead h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0;}
@@ -243,7 +247,7 @@
 
 /* ============ STORAGE ============ */
 const KEY = "backstitch_db_v1";
-const blank = {products:[],purchases:[],orders:[],customers:[],expenses:[],offers:[],meta:{lowStock:3,lastBackup:null}};
+const blank = {products:[],packaging:[],purchases:[],orders:[],customers:[],expenses:[],offers:[],meta:{lowStock:3,lastBackup:null}};
 let db = load();
 
 function load(){
@@ -286,7 +290,8 @@ function pendingQtyOf(pid){
   for(const o of db.orders) if(o.status==="pending") for(const it of o.items) if(it.productId===pid) q+=Number(it.qty)||0;
   return q;
 }
-const orderTotal = o => o.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0);
+const orderSubtotal = o => o.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0);
+const orderTotal = o => Math.max(0, orderSubtotal(o) - (Number(o.discount)||0));
 function orderCOGS(o){ return o.items.reduce((s,it)=>{const p=db.products.find(x=>x.id===it.productId);return s+(Number(it.qty)||0)*(p?Number(p.cost)||0:0);},0); }
 
 function totals(){
@@ -307,7 +312,7 @@ function totals(){
 
 /* ============ NAV / ROUTER ============ */
 const TABS = [
-  ["dashboard","Dashboard"],["orders","Orders"],["products","Products"],
+  ["dashboard","Dashboard"],["orders","Orders"],["inventory","Inventory"],
   ["purchases","Purchases"],["customers","Customers"],["expenses","Expenses"],
   ["offers","Offers"],["backup","Backup"]
 ];
@@ -318,7 +323,7 @@ function renderNav(){
 }
 function go(id){ current=id; renderNav(); render(); window.scrollTo(0,0); }
 
-function render(){ ({dashboard:vDashboard,orders:vOrders,products:vProducts,purchases:vPurchases,customers:vCustomers,expenses:vExpenses,offers:vOffers,backup:vBackup}[current])(); }
+function render(){ ({dashboard:vDashboard,orders:vOrders,inventory:vInventory,purchases:vPurchases,customers:vCustomers,expenses:vExpenses,offers:vOffers,backup:vBackup}[current])(); }
 
 function head(title,sub,btn){
   return `<div class="viewhead"><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:""}</div>${btn||""}</div>`;
@@ -394,7 +399,7 @@ function vOrders(){
     const deliverBtn = o.status==="pending" ? `<button class="iconbtn" onclick="markDelivered('${o.id}')" title="Mark delivered">✓</button>` : "";
     return `<div class="row"><div class="main">
       <div class="title">${esc(customerName(o.customerId))} <span class="pill ${o.status}">${o.status==="delivered"?"Delivered":"Pending"}</span></div>
-      <div class="meta">${items||"—"} · <b>${money(orderTotal(o))}</b> · ${fmtDate(o.date)}${o.channel?` · ${esc(o.channel)}`:""}</div>
+      <div class="meta">${items||"—"} · <b>${money(orderTotal(o))}</b>${o.discount?` · −${money(o.discount)} off`:""} · ${fmtDate(o.date)}${o.channel?` · ${esc(o.channel)}`:""}</div>
     </div><div class="actions">${deliverBtn}
       <button class="iconbtn" onclick="openOrder('${o.id}')">✎</button>
       <button class="iconbtn del" onclick="del('orders','${o.id}')">🗑</button>
@@ -408,23 +413,48 @@ function markDelivered(id){
   save(); toast("Marked delivered — stock updated"); render();
 }
 
-/* ============ PRODUCTS ============ */
-function vProducts(){
-  const btn = `<button class="btn" onclick="openForm('products')">＋ New product</button>`;
-  let h = head("Products","Stock = purchased − delivered",btn);
-  if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add the companions and dolls you make.",`<button class="btn" onclick="openForm('products')">＋ New product</button>`); return; }
+/* ============ INVENTORY (Products + Packaging) ============ */
+let invSub = "product";
+function setInv(s){ invSub=s; render(); }
+function vInventory(){
+  let h = head("Inventory", invSub==="product" ? "Stock = purchased − delivered" : "Boxes, bags, tags and wrap you keep on hand");
+  h += `<div class="subtabs">
+    <button class="subtab ${invSub==="product"?"active":""}" onclick="setInv('product')">Products</button>
+    <button class="subtab ${invSub==="packaging"?"active":""}" onclick="setInv('packaging')">Packaging</button>
+  </div>`;
+  h += invSub==="product" ? productsInner() : packagingInner();
+  $("#view").innerHTML = h;
+}
+function productsInner(){
+  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn" onclick="openForm('products')">＋ New product</button></div>`;
+  if(!db.products.length) return h+emptyState("Add the companions and dolls you make.",`<button class="btn" onclick="openForm('products')">＋ New product</button>`);
   h += [...db.products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
     const s=stockOf(p.id), pend=pendingQtyOf(p.id);
     const low = s<=db.meta.lowStock;
     return `<div class="row"><div class="main">
       <div class="title">${esc(p.name)} ${low?`<span class="pill low">Low</span>`:`<span class="pill ok">${s} in stock</span>`}</div>
-      <div class="meta">${p.category?esc(p.category)+" · ":""}Cost ${money(p.cost)} · Sells ${money(p.price)}${pend?` · <b>${pend}</b> awaiting delivery`:""}</div>
+      <div class="meta">${p.category?esc(p.category)+" · ":""}Buying ${money(p.cost)} · Selling ${money(p.price)}${pend?` · <b>${pend}</b> awaiting delivery`:""}</div>
     </div><div class="actions">
       <button class="iconbtn" onclick="openForm('products','${p.id}')">✎</button>
       <button class="iconbtn del" onclick="del('products','${p.id}')">🗑</button>
     </div></div>`;
   }).join("");
-  $("#view").innerHTML = h;
+  return h;
+}
+function packagingInner(){
+  let h = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn" onclick="openForm('packaging')">＋ New packaging</button></div>`;
+  if(!db.packaging.length) return h+emptyState("Add packaging you buy — gift boxes, poly bags, tags, ribbon.",`<button class="btn" onclick="openForm('packaging')">＋ New packaging</button>`);
+  h += [...db.packaging].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
+    const q=Number(p.qty)||0, low=q<=db.meta.lowStock;
+    return `<div class="row"><div class="main">
+      <div class="title">${esc(p.name)} ${low?`<span class="pill low">Low</span>`:`<span class="pill ok">${q} in stock</span>`}</div>
+      <div class="meta">Buying price ${money(p.cost)}${p.notes?" · "+esc(p.notes):""}</div>
+    </div><div class="actions">
+      <button class="iconbtn" onclick="openForm('packaging','${p.id}')">✎</button>
+      <button class="iconbtn del" onclick="del('packaging','${p.id}')">🗑</button>
+    </div></div>`;
+  }).join("");
+  return h;
 }
 
 /* ============ PURCHASES ============ */
@@ -510,6 +540,12 @@ const SCHEMA = {
     {k:"price",label:"Selling price ₹",type:"number",two:true},
     {k:"notes",label:"Notes",type:"textarea"},
   ]},
+  packaging:{title:"Packaging item",fields:[
+    {k:"name",label:"Name",type:"text",req:true,ph:"Gift box / Poly bag / Tag / Ribbon"},
+    {k:"cost",label:"Buying price ₹",type:"number",two:true},
+    {k:"qty",label:"In stock",type:"number",two:true,def:()=>0},
+    {k:"notes",label:"Notes",type:"textarea"},
+  ]},
   purchases:{title:"Purchase",fields:[
     {k:"date",label:"Date",type:"date",def:today},
     {k:"productId",label:"Product",type:"product",req:true},
@@ -592,7 +628,9 @@ function saveForm(){
 let orderDraft=null;
 function openOrder(id){
   const o = id? db.orders.find(x=>x.id===id) : null;
-  orderDraft = o ? structuredClone(o) : {id:uid(),date:today(),customerId:"",channel:"Instagram",status:"pending",items:[],notes:""};
+  orderDraft = o ? structuredClone(o) : {id:uid(),date:today(),customerId:"",channel:"Instagram",status:"pending",items:[],notes:"",discount:0,offerId:""};
+  if(orderDraft.discount==null) orderDraft.discount=0;
+  if(orderDraft.offerId==null) orderDraft.offerId="";
   if(!orderDraft.items.length) orderDraft.items.push({productId:"",qty:1,price:""});
   renderOrderModal(!!id);
 }
@@ -614,7 +652,14 @@ function renderOrderModal(isEdit){
   inner += `<div class="li-head"><span>Product</span><span>Qty</span><span>Price ₹</span><span></span></div>`;
   inner += `<div id="lineitems">`+orderDraft.items.map((it,i)=>lineItemHTML(it,i)).join("")+`</div>`;
   inner += `<button class="btn ghost small" onclick="addLine()" style="margin:2px 0 14px">＋ Add item</button>`;
+  inner += `<div class="field two"><label>Offer / discount</label>
+    <select id="o_offer" onchange="applyOffer()">
+      <option value="">No offer</option>
+      ${db.offers.filter(o=>o.active).map(o=>`<option value="${o.id}" ${orderDraft.offerId===o.id?"selected":""}>${esc(o.code||"Offer")} (${o.type==="percent"?(o.value+"%"):money(o.value)})</option>`).join("")}
+    </select>
+    <input id="o_discount" type="number" inputmode="decimal" value="${esc(orderDraft.discount||"")}" placeholder="₹ off" onchange="discountChange()"></div>`;
   inner += `<div class="field"><label>Notes</label><textarea id="o_notes">${esc(orderDraft.notes||"")}</textarea></div>`;
+  inner += `<div class="kv" style="font-size:15px"><span>Subtotal</span><span class="amt" id="o_subtotal">${money(draftSubtotal())}</span></div>`;
   inner += `<div id="o_total" class="kv" style="font-size:17px"><span>Order total</span><span class="amt">${money(draftTotal())}</span></div>`;
   inner += `<div class="modal-actions" style="margin-top:14px">
     <button class="btn neutral" onclick="closeModal()">Cancel</button>
@@ -635,19 +680,53 @@ function syncDraftFromDom(){
   if($("#o_customer")) orderDraft.customerId=$("#o_customer").value;
   if($("#o_channel")) orderDraft.channel=$("#o_channel").value;
   if($("#o_notes")) orderDraft.notes=$("#o_notes").value;
+  if($("#o_discount")) orderDraft.discount=$("#o_discount").value===""?0:Number($("#o_discount").value);
+  if($("#o_offer")) orderDraft.offerId=$("#o_offer").value;
+}
+function draftSubtotal(){ return orderDraft.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0); }
+function draftTotal(){ return Math.max(0, draftSubtotal()-(Number(orderDraft.discount)||0)); }
+function refreshTotals(){
+  if($("#o_subtotal")) $("#o_subtotal").textContent=money(draftSubtotal());
+  if($("#o_total")) $("#o_total").innerHTML=`<span>Order total</span><span class="amt">${money(draftTotal())}</span>`;
+}
+function recomputeOffer(){
+  const off=db.offers.find(o=>o.id===orderDraft.offerId);
+  if(off && off.type==="percent"){
+    orderDraft.discount=Math.round(draftSubtotal()*(Number(off.value)||0)/100);
+    if($("#o_discount")) $("#o_discount").value=orderDraft.discount;
+  }
+}
+function applyOffer(){
+  orderDraft.offerId=$("#o_offer").value;
+  const off=db.offers.find(o=>o.id===orderDraft.offerId);
+  if(off){
+    const sub=draftSubtotal();
+    orderDraft.discount = off.type==="percent" ? Math.round(sub*(Number(off.value)||0)/100) : (Number(off.value)||0);
+    if($("#o_discount")) $("#o_discount").value=orderDraft.discount;
+  }
+  refreshTotals();
+}
+function discountChange(){
+  orderDraft.discount=$("#o_discount").value===""?0:Number($("#o_discount").value);
+  orderDraft.offerId=""; if($("#o_offer")) $("#o_offer").value="";
+  refreshTotals();
 }
 function lineChange(i,k,val){
   if(k==="productId"){
     orderDraft.items[i].productId=val;
     const p=db.products.find(x=>x.id===val);
     if(p && (orderDraft.items[i].price===""||orderDraft.items[i].price==null)) orderDraft.items[i].price=p.price;
-  } else orderDraft.items[i][k]= val===""?"":Number(val);
-  $("#o_total").innerHTML=`<span>Order total</span><span class="amt">${money(draftTotal())}</span>`;
-  if(k==="productId"){ syncDraftFromDom(); $("#lineitems").innerHTML=orderDraft.items.map((it,idx)=>lineItemHTML(it,idx)).join(""); }
+    syncDraftFromDom();
+    recomputeOffer();
+    $("#lineitems").innerHTML=orderDraft.items.map((it,idx)=>lineItemHTML(it,idx)).join("");
+  } else {
+    orderDraft.items[i][k]= val===""?"":Number(val);
+    recomputeOffer();
+  }
+  refreshTotals();
 }
 function addLine(){ syncDraftFromDom(); orderDraft.items.push({productId:"",qty:1,price:""}); $("#lineitems").innerHTML=orderDraft.items.map((it,i)=>lineItemHTML(it,i)).join(""); }
 function rmLine(i){ syncDraftFromDom(); orderDraft.items.splice(i,1); if(!orderDraft.items.length) orderDraft.items.push({productId:"",qty:1,price:""}); renderOrderModal(!!db.orders.find(x=>x.id===orderDraft.id)); }
-function draftTotal(){ return orderDraft.items.reduce((s,it)=>s+(Number(it.qty)||0)*(Number(it.price)||0),0); }
 function saveOrder(){
   syncDraftFromDom();
   orderDraft.items = orderDraft.items.filter(it=>it.productId);
@@ -679,7 +758,7 @@ $("#overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeMod
 
 /* ============ BACKUP ============ */
 function vBackup(){
-  const counts = ["products","purchases","orders","customers","expenses","offers"].map(k=>`<div class="kv"><span>${k[0].toUpperCase()+k.slice(1)}</span><span class="amt">${db[k].length}</span></div>`).join("");
+  const counts = ["products","packaging","purchases","orders","customers","expenses","offers"].map(k=>`<div class="kv"><span>${k[0].toUpperCase()+k.slice(1)}</span><span class="amt">${db[k].length}</span></div>`).join("");
   const last = db.meta.lastBackup ? new Date(db.meta.lastBackup).toLocaleString("en-IN") : "never";
   let h = head("Backup","Your data lives only on this iPad");
   h += `<div class="card" style="border-color:var(--ochre);background:#fdf6e8">
@@ -741,7 +820,8 @@ function tableCSV(name,rows,cols){
 }
 function exportCSV(){
   let out="";
-  out+=tableCSV("Products",db.products.map(p=>({name:p.name,category:p.category,cost:p.cost,price:p.price,stock:stockOf(p.id),notes:p.notes})),["name","category","cost","price","stock","notes"]);
+  out+=tableCSV("Products",db.products.map(p=>({name:p.name,category:p.category,buyingPrice:p.cost,sellingPrice:p.price,stock:stockOf(p.id),notes:p.notes})),["name","category","buyingPrice","sellingPrice","stock","notes"]);
+  out+=tableCSV("Packaging",db.packaging.map(p=>({name:p.name,buyingPrice:p.cost,qty:p.qty,notes:p.notes})),["name","buyingPrice","qty","notes"]);
   out+=tableCSV("Purchases",db.purchases.map(p=>({date:p.date,product:productName(p.productId),qty:p.qty,unitCost:p.unitCost,total:(Number(p.qty)||0)*(Number(p.unitCost)||0),supplier:p.supplier,notes:p.notes})),["date","product","qty","unitCost","total","supplier","notes"]);
   const orows=[]; db.orders.forEach(o=>o.items.forEach(it=>orows.push({date:o.date,customer:customerName(o.customerId),product:productName(it.productId),qty:it.qty,price:it.price,lineTotal:(Number(it.qty)||0)*(Number(it.price)||0),status:o.status,channel:o.channel})));
   out+=tableCSV("Orders",orows,["date","customer","product","qty","price","lineTotal","status","channel"]);
@@ -778,3 +858,4 @@ render();
 </script>
 </body>
 </html>
+
