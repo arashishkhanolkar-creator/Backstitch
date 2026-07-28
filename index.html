@@ -251,7 +251,7 @@ function totals(){
   let spend=0; for(const t of db.purchases) spend+=purchaseAmount(t); for(const e of db.expenses) spend+=Number(e.amount)||0;
   let received=0,pending=0;
   for(const o of db.orders){ if(o.status==="completed") received+=orderTotal(o); else if(o.status==="pending") pending+=orderTotal(o); }
-  let potential=0; for(const p of db.products){ const a=availableQty(p.id); if(a>0) potential+=a*(Number(p.price)||0); }
+  let potential=0; for(const p of db.products){ potential+=purchasedQty(p.id)*(Number(p.price)||0); }
   return {spend,received,pending,potential,balance:received-spend};
 }
 
