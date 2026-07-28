@@ -251,7 +251,8 @@ function totals(){
   let spend=0; for(const t of db.purchases) spend+=purchaseAmount(t); for(const e of db.expenses) spend+=Number(e.amount)||0;
   let received=0,pending=0;
   for(const o of db.orders){ if(o.status==="completed") received+=orderTotal(o); else if(o.status==="pending") pending+=orderTotal(o); }
-  return {spend,received,pending,balance:received-spend};
+  let potential=0; for(const p of db.products){ const a=availableQty(p.id); if(a>0) potential+=a*(Number(p.price)||0); }
+  return {spend,received,pending,potential,balance:received-spend};
 }
 
 /* ============ PIE ============ */
@@ -291,6 +292,7 @@ function vHome(){
     <div class="stat"><div class="k">Total spendings</div><div class="v neg">${money(t.spend)}</div></div>
     <div class="stat"><div class="k">Income received</div><div class="v pos">${money(t.received)}</div></div>
     <div class="stat"><div class="k">Pending income</div><div class="v amber">${money(t.pending)}</div></div>
+    <div class="stat"><div class="k">Potential income</div><div class="v">${money(t.potential)}</div></div>
     <div class="stat"><div class="k">${t.balance>=0?'Profit':'Loss'}</div><div class="v ${t.balance>=0?'pos':'neg'}">${money(t.balance)}</div></div>
   </div>`;
 
