@@ -136,6 +136,12 @@
   .oitem .orow{display:grid;grid-template-columns:80px 1fr 36px;gap:8px;align-items:center;}
   .oitem .orow select,.oitem .orow input{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;margin-bottom:0;}
   .oitem .orm{border:none;background:none;color:var(--rust);font-size:22px;padding:0;}
+  .invtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-bottom:6px;}
+  .invtile{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 10px;text-align:center;cursor:pointer;box-shadow:var(--shadow);}
+  .invtile:active{background:var(--paper2);}
+  .invtile .nm{font-size:13px;font-weight:600;line-height:1.25;min-height:2.4em;display:flex;align-items:center;justify-content:center;}
+  .invtile .qty{font-family:var(--serif);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px;}
+  .invtile .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;}
   .piewrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
   .pie{flex:none;}
   .legend{flex:1;min-width:170px;}
@@ -200,7 +206,7 @@
 const KEY="backstitch_db_v2";
 const OLD_KEY="backstitch_db_v1";
 const CATS=["animals","keychains","flowers","misc"];
-const catLabel=c=>({animals:"Animals",keychains:"Keychains",flowers:"Flowers",misc:"Misc"}[c]||"Misc");
+const catLabel=c=>({animals:"Toys",keychains:"Keychains",flowers:"Flowers",misc:"Misc"}[c]||"Misc");
 const blank={products:[],purchases:[],expenses:[],orders:[],meta:{lowStock:3,lastBackup:null}};
 let db=load();
 
@@ -322,12 +328,9 @@ function vHome(){
 
   h+=`<div class="homegrid">`;
 
-  h+=`<div class="homecol"><h3>Orders</h3>`;
-  const ords=db.orders.filter(o=>o.status!=="cancelled").sort((a,b)=>{
-    if((a.status==="pending")!==(b.status==="pending")) return a.status==="pending"?-1:1;
-    return (b.date||"").localeCompare(a.date||"");
-  });
-  if(!ords.length) h+=`<div class="card note">No orders yet. Add one in the Orders tab.</div>`;
+  h+=`<div class="homecol"><h3>Pending orders</h3>`;
+  const ords=db.orders.filter(o=>o.status==="pending").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!ords.length) h+=`<div class="card note">No pending orders right now.</div>`;
   else{
     h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th class="num">Total</th><th>Done</th></tr></thead><tbody>`;
     h+=ords.map(o=>{
@@ -359,18 +362,16 @@ function toggleComplete(id){ const o=db.orders.find(x=>x.id===id); if(!o)return;
 /* ============ INVENTORY ============ */
 function vInventory(){
   const btn=`<button class="btn" onclick="openProduct()">＋ Add product</button>`;
-  let h=head("Inventory","Tap a row to edit · available = stock in − orders",btn);
-  if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add your products with buying and selling price.",`<button class="btn" onclick="openProduct()">＋ Add product</button>`); return; }
+  let h=head("Inventory","Tap a product to edit · number = available",btn);
+  if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add your products to start tracking stock.",`<button class="btn" onclick="openProduct()">＋ Add product</button>`); return; }
   CATS.forEach(cat=>{
     const list=db.products.filter(p=>p.category===cat).sort((a,b)=>a.name.localeCompare(b.name));
     if(!list.length) return;
     h+=`<div class="section-label">${catLabel(cat)}</div>`;
-    h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th class="num">Buying</th><th class="num">Selling</th><th class="num">Left</th></tr></thead><tbody>`;
-    h+=list.map(p=>{
+    h+=`<div class="invtiles">`+list.map(p=>{
       const a=availableQty(p.id);
-      return `<tr class="tap" onclick="openProduct('${p.id}')"><td>${esc(p.name)}</td><td class="num">${money(p.cost)}</td><td class="num">${money(p.price)}</td><td class="num ${availClass(a)}"><b>${a}</b></td></tr>`;
-    }).join("");
-    h+=`</tbody></table></div>`;
+      return `<div class="invtile" onclick="openProduct('${p.id}')"><div class="nm">${esc(p.name)}</div><div class="qty ${availClass(a)}">${a}</div><div class="lbl">left</div></div>`;
+    }).join("")+`</div>`;
   });
   $("#view").innerHTML=h;
 }
@@ -424,7 +425,10 @@ function vExpense(){
   db.expenses.forEach(e=>entries.push({type:"expense",id:e.id,date:e.date,amount:Number(e.amount)||0,cat:e.category?cap(e.category):"Other",note:e.notes||"—"}));
   if(!entries.length){ $("#view").innerHTML=h+emptyState("Record a stock purchase or another cost.",`<button class="btn" onclick="openSpend()">＋ New purchase</button>`); return; }
   const catT={};
-  db.purchases.forEach(t=>{ catT["Stock"]=(catT["Stock"]||0)+purchaseAmount(t); });
+  db.purchases.forEach(t=>{
+    (t.items||[]).forEach(it=>{ const p=db.products.find(x=>x.id===it.productId); const lab=p?catLabel(p.category):"Misc"; catT[lab]=(catT[lab]||0)+(Number(it.qty)||0)*(Number(it.unitCost)||0); });
+    if(Number(t.shipping)) catT["Shipping"]=(catT["Shipping"]||0)+Number(t.shipping);
+  });
   db.expenses.forEach(e=>{ const c=e.category?cap(e.category):"Other"; catT[c]=(catT[c]||0)+(Number(e.amount)||0); });
   const pcats=Object.keys(catT).filter(k=>catT[k]>0).sort((a,b)=>catT[b]-catT[a]);
   if(pcats.length){
@@ -532,26 +536,29 @@ function delPurchase(id){ if(!confirm("Delete this purchase? Stock will drop acc
 function delOther(id){ if(!confirm("Delete this expense?")) return; db.expenses=db.expenses.filter(x=>x.id!==id); save(); toast("Deleted"); render(); }
 
 /* ============ ORDERS ============ */
+function orderTile(o){
+  const st=o.status;
+  const cls= st==="completed"?"completed":(st==="cancelled"?"cancelled":"pending");
+  const label= st==="completed"?"Delivered":(st==="cancelled"?"Cancelled":"Pending");
+  const items=(o.items||[]).map(it=>esc(productName(it.productId))+"×"+it.qty).join(", ");
+  return `<div class="tile ${cls}" onclick="openOrder('${o.id}')">
+    <div class="st">${label}</div>
+    <div class="cust">${esc(o.customer||"Customer")}</div>
+    <div class="its">${items||"—"}</div>
+    <div class="tot">${money(orderTotal(o))}</div>
+    <div class="its">${fmtShort(o.date)}</div>
+  </div>`;
+}
 function vOrders(){
   const btn=`<button class="btn" onclick="openOrder()">＋ New order</button>`;
   let h=head("Orders","Yellow pending · green delivered · red cancelled",btn);
-  const list=[...db.orders].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  if(!list.length){ $("#view").innerHTML=h+emptyState("Add your first customer order.",`<button class="btn" onclick="openOrder()">＋ New order</button>`); return; }
-  h+=`<div class="tiles">`;
-  h+=list.map(o=>{
-    const st=o.status;
-    const cls= st==="completed"?"completed":(st==="cancelled"?"cancelled":"pending");
-    const label= st==="completed"?"Delivered":(st==="cancelled"?"Cancelled":"Pending");
-    const items=(o.items||[]).map(it=>esc(productName(it.productId))+"×"+it.qty).join(", ");
-    return `<div class="tile ${cls}" onclick="openOrder('${o.id}')">
-      <div class="st">${label}</div>
-      <div class="cust">${esc(o.customer||"Customer")}</div>
-      <div class="its">${items||"—"}</div>
-      <div class="tot">${money(orderTotal(o))}</div>
-      <div class="its">${fmtShort(o.date)}</div>
-    </div>`;
-  }).join("");
-  h+=`</div>`;
+  if(!db.orders.length){ $("#view").innerHTML=h+emptyState("Add your first customer order.",`<button class="btn" onclick="openOrder()">＋ New order</button>`); return; }
+  [["pending","Pending"],["completed","Delivered"],["cancelled","Cancelled"]].forEach(([stt,label])=>{
+    const list=db.orders.filter(o=>o.status===stt).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    if(!list.length) return;
+    h+=`<div class="section-label">${label} · ${list.length}</div>`;
+    h+=`<div class="tiles">`+list.map(o=>orderTile(o)).join("")+`</div>`;
+  });
   $("#view").innerHTML=h;
 }
 function delOrder(id){ if(!confirm("Delete this order?")) return; db.orders=db.orders.filter(x=>x.id!==id); save(); closeModal(); toast("Deleted"); render(); }
@@ -600,17 +607,18 @@ function renderOrder(isEdit){
   showModal(inner);
 }
 function oLine(it,i){
-  const cats=CATS.map(c=>`<option value="${c}" ${it.category===c?"selected":""}>${catLabel(c)}</option>`).join("");
-  const prods=[...db.products].filter(p=>!it.category||p.category===it.category).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  const groups=CATS.map(c=>{
+    const ps=[...db.products].filter(p=>p.category===c).sort((a,b)=>a.name.localeCompare(b.name));
+    if(!ps.length) return "";
+    return `<optgroup label="${catLabel(c)}">`+ps.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("")+`</optgroup>`;
+  }).join("");
   const qtys=Array.from({length:50},(_,n)=>n+1).map(n=>`<option value="${n}" ${Number(it.qty)===n?"selected":""}>${n}</option>`).join("");
   return `<div class="oitem">
-    <select onchange="oCat(${i},this.value)"><option value="">Select category…</option>${cats}</select>
-    <select onchange="oProd(${i},this.value)"><option value="">Select product…</option>${prods}</select>
+    <select onchange="oProd(${i},this.value)"><option value="">Select product…</option>${groups}</select>
     <div class="orow"><select onchange="oQty(${i},this.value)">${qtys}</select>
       <input type="number" inputmode="decimal" value="${esc(it.price)}" placeholder="Price ₹" onchange="oPrice(${i},this.value)">
       <button class="orm" onclick="oRm(${i})">×</button></div></div>`;
 }
-function oCat(i,val){ oSync(); ordDraft.items[i].category=val; ordDraft.items[i].productId=""; renderOItems(); }
 function oProd(i,val){ oSync(); ordDraft.items[i].productId=val; const p=db.products.find(x=>x.id===val); if(p) ordDraft.items[i].price=p.price; renderOItems(); oTotals(); }
 function oQty(i,val){ ordDraft.items[i].qty=Number(val)||1; oTotals(); }
 function oPrice(i,val){ ordDraft.items[i].price= val===""?"":Number(val); oTotals(); }
