@@ -271,7 +271,7 @@ function totals(){
   let received=0,pending=0;
   for(const o of db.orders){ if(o.status==="completed") received+=orderTotal(o); else if(o.status==="pending") pending+=orderTotal(o); }
   let potential=0; for(const p of db.products){ potential+=purchasedQty(p.id)*(Number(p.price)||0); }
-  return {spend,received,pending,potential,balance:received-spend};
+  return {spend,received,pending,potential,balance:received-spend,profitLoss:(received+pending)-spend};
 }
 
 /* ============ PIE ============ */
@@ -312,7 +312,7 @@ function vHome(){
     <div class="stat"><div class="k">Income received</div><div class="v pos">${money(t.received)}</div></div>
     <div class="stat"><div class="k">Pending income</div><div class="v amber">${money(t.pending)}</div></div>
     <div class="stat"><div class="k">Potential income</div><div class="v">${money(t.potential)}</div></div>
-    <div class="stat"><div class="k">${t.balance>=0?'Profit':'Loss'}</div><div class="v ${t.balance>=0?'pos':'neg'}">${money(t.balance)}</div></div>
+    <div class="stat"><div class="k">${t.profitLoss>=0?'Profit':'Loss'}</div><div class="v ${t.profitLoss>=0?'pos':'neg'}">${money(t.profitLoss)}</div></div>
   </div>`;
 
   h+=`<div class="homegrid">`;
