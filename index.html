@@ -131,6 +131,11 @@
   .pickmain input[type=checkbox]{width:22px;height:22px;flex:none;}
   .pickmain span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .pickrow .pq,.pickrow .pp{padding:8px;border:1px solid var(--line);border-radius:8px;width:100%;}
+  .oitem{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:#fff;}
+  .oitem>select,.oitem>input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:#fff;}
+  .oitem .orow{display:grid;grid-template-columns:80px 1fr 36px;gap:8px;align-items:center;}
+  .oitem .orow select,.oitem .orow input{width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;margin-bottom:0;}
+  .oitem .orm{border:none;background:none;color:var(--rust);font-size:22px;padding:0;}
   .piewrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
   .pie{flex:none;}
   .legend{flex:1;min-width:170px;}
@@ -357,7 +362,7 @@ function vInventory(){
   let h=head("Inventory","Tap a row to edit · available = stock in − orders",btn);
   if(!db.products.length){ $("#view").innerHTML=h+emptyState("Add your products with buying and selling price.",`<button class="btn" onclick="openProduct()">＋ Add product</button>`); return; }
   CATS.forEach(cat=>{
-    const list=db.products.filter(p=>p.category===cat).sort((a,b)=>(orderedQty(b.id)-orderedQty(a.id))||a.name.localeCompare(b.name));
+    const list=db.products.filter(p=>p.category===cat).sort((a,b)=>a.name.localeCompare(b.name));
     if(!list.length) return;
     h+=`<div class="section-label">${catLabel(cat)}</div>`;
     h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th class="num">Buying</th><th class="num">Selling</th><th class="num">Left</th></tr></thead><tbody>`;
@@ -375,9 +380,16 @@ function openProduct(id){
   let inner=`<h3>${id?"Edit":"Add"} product</h3>`;
   inner+=`<div class="field"><label>Name</label><input id="p_name" value="${esc(d.name||"")}" placeholder="Bunny Blue"></div>`;
   inner+=`<div class="field"><label>Category</label><select id="p_cat">${CATS.map(c=>`<option value="${c}" ${d.category===c?"selected":""}>${catLabel(c)}</option>`).join("")}</select></div>`;
+  const ic=d.cost!=null?Number(d.cost):0;
+  const sugg=ic>0?Math.round(ic*1.75):null;
+  const sellPh=sugg!=null?String(sugg):"Selling";
+  let hint0="";
+  if(ic>0 && d.price!=null && d.price!=="" && Number(d.price)>0){ const pr=Math.round((Number(d.price)-ic)/ic*100); hint0=`<span class="${pr>=0?'pos':'neg'}">${pr>=0?'+':''}${pr}% profit</span>`; }
+  else if(ic>0){ hint0=`Suggested selling ₹${sugg} (75% markup)`; }
   inner+=`<div class="field two"><label>Prices ₹</label>
-    <input id="p_cost" type="number" inputmode="decimal" value="${esc(d.cost!=null?d.cost:"")}" placeholder="Buying">
-    <input id="p_price" type="number" inputmode="decimal" value="${esc(d.price!=null?d.price:"")}" placeholder="Selling"></div>`;
+    <input id="p_cost" type="number" inputmode="decimal" value="${esc(d.cost!=null?d.cost:"")}" placeholder="Buying" oninput="prodHint()">
+    <input id="p_price" type="number" inputmode="decimal" value="${esc(d.price!=null?d.price:"")}" placeholder="${sellPh}" oninput="prodHint()"></div>`;
+  inner+=`<div id="p_hint" class="note" style="margin-top:-6px;margin-bottom:14px">${hint0}</div>`;
   inner+=`<div class="modal-actions">`;
   if(id) inner+=`<button class="btn danger" onclick="delProduct('${id}')">Delete</button>`;
   inner+=`<button class="btn neutral" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveProduct('${id||""}')">${id?"Save":"Add"}</button></div>`;
@@ -393,6 +405,14 @@ function saveProduct(id){
   save(); closeModal(); toast(id?"Saved":"Product added"); render();
 }
 function delProduct(id){ if(!confirm("Delete this product?")) return; db.products=db.products.filter(x=>x.id!==id); save(); closeModal(); toast("Deleted"); render(); }
+function prodHint(){
+  const cEl=$("#p_cost"), pEl=$("#p_price"), hint=$("#p_hint"); if(!cEl||!pEl||!hint) return;
+  const c=Number(cEl.value)||0, p=Number(pEl.value);
+  pEl.placeholder = c>0?String(Math.round(c*1.75)):"Selling";
+  if(c>0 && pEl.value!=="" && p>0){ const pr=Math.round((p-c)/c*100); hint.innerHTML=`<span class="${pr>=0?'pos':'neg'}">${pr>=0?'+':''}${pr}% profit</span>`; }
+  else if(c>0){ hint.innerHTML=`Suggested selling ₹${Math.round(c*1.75)} (75% markup)`; }
+  else hint.innerHTML="";
+}
 
 /* ============ EXPENSE ============ */
 function vExpense(){
@@ -458,10 +478,11 @@ function puForm(){
   return h;
 }
 function puLine(it,i){
-  const opts=`<option value="">Product…</option>`+db.products.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  const opts=`<option value="">Product…</option>`+[...db.products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  const qtys=Array.from({length:50},(_,n)=>n+1).map(n=>`<option value="${n}" ${Number(it.qty)===n?"selected":""}>${n}</option>`).join("");
   return `<div class="lineitem">
     <select onchange="puChange(${i},'productId',this.value)">${opts}</select>
-    <input type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="puChange(${i},'qty',this.value)">
+    <select onchange="puChange(${i},'qty',this.value)">${qtys}</select>
     <input type="number" inputmode="decimal" value="${esc(it.unitCost)}" onchange="puChange(${i},'unitCost',this.value)">
     <button class="rm" onclick="puRm(${i})">×</button></div>`;
 }
@@ -538,8 +559,9 @@ function delOrder(id){ if(!confirm("Delete this order?")) return; db.orders=db.o
 let ordDraft=null;
 function openOrder(id){
   const o=id?db.orders.find(x=>x.id===id):null;
-  ordDraft=o?structuredClone(o):{id:uid(),date:today(),customer:"",contact:"",items:[{productId:"",qty:1,price:""}],discountType:"none",discountValue:0,status:"pending"};
-  if(!ordDraft.items) ordDraft.items=[];
+  ordDraft=o?structuredClone(o):{id:uid(),date:today(),customer:"",contact:"",items:[{category:"",productId:"",qty:1,price:""}],discountType:"none",discountValue:0,status:"pending"};
+  if(!ordDraft.items||!ordDraft.items.length) ordDraft.items=[{category:"",productId:"",qty:1,price:""}];
+  ordDraft.items.forEach(it=>{ if(it.qty==null||it.qty==="") it.qty=1; if(!it.category && it.productId){ const p=db.products.find(x=>x.id===it.productId); it.category=p?p.category:""; } });
   if(ordDraft.discountType==null){ ordDraft.discountType="none"; ordDraft.discountValue=0; }
   renderOrder(!!id);
 }
@@ -549,11 +571,11 @@ function renderOrder(isEdit){
   inner+=`<div class="field two"><label>Customer</label>
     <input id="o_cust" value="${esc(ordDraft.customer||"")}" placeholder="Name">
     <input id="o_contact" value="${esc(ordDraft.contact||"")}" placeholder="Phone / @handle"></div>`;
-  inner+=`<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Products — tick everything they ordered</label>`;
+  inner+=`<label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block">Order items</label>`;
   if(!db.products.length) inner+=`<div class="note" style="margin-bottom:14px">Add products in the Inventory tab first.</div>`;
   else{
-    inner+=`<div class="pickhead"><span>Product</span><span>Qty</span><span>Price</span></div>`;
-    inner+=`<div class="picklist" id="o_pick">`+db.products.map(p=>oPick(p)).join("")+`</div>`;
+    inner+=`<div id="o_items">`+ordDraft.items.map((it,i)=>oLine(it,i)).join("")+`</div>`;
+    inner+=`<button class="btn ghost small" onclick="oAdd()" style="margin:2px 0 14px">＋ Add product</button>`;
   }
   const dv=ordDraft.discountType==="percent"?String(ordDraft.discountValue):(ordDraft.discountType==="flat"?"custom":"none");
   inner+=`<div class="field"><label>Offer</label><select id="o_disc" onchange="oDiscSel()">
@@ -577,23 +599,24 @@ function renderOrder(isEdit){
   inner+=`<button class="btn neutral" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveOrder()">${isEdit?"Save order":"Add order"}</button></div>`;
   showModal(inner);
 }
-function oPick(p){
-  const it=ordDraft.items.find(x=>x.productId===p.id);
-  const on=!!it;
-  return `<div class="pickrow ${on?'on':''}">
-    <label class="pickmain"><input type="checkbox" ${on?'checked':''} onchange="oToggle('${p.id}',this.checked)"><span>${esc(p.name)}</span></label>
-    ${on?`<input class="pq" type="number" inputmode="numeric" value="${esc(it.qty)}" onchange="oItem('${p.id}','qty',this.value)">
-    <input class="pp" type="number" inputmode="decimal" value="${esc(it.price)}" onchange="oItem('${p.id}','price',this.value)">`:`<span></span><span></span>`}
-  </div>`;
+function oLine(it,i){
+  const cats=CATS.map(c=>`<option value="${c}" ${it.category===c?"selected":""}>${catLabel(c)}</option>`).join("");
+  const prods=[...db.products].filter(p=>!it.category||p.category===it.category).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("");
+  const qtys=Array.from({length:50},(_,n)=>n+1).map(n=>`<option value="${n}" ${Number(it.qty)===n?"selected":""}>${n}</option>`).join("");
+  return `<div class="oitem">
+    <select onchange="oCat(${i},this.value)"><option value="">Select category…</option>${cats}</select>
+    <select onchange="oProd(${i},this.value)"><option value="">Select product…</option>${prods}</select>
+    <div class="orow"><select onchange="oQty(${i},this.value)">${qtys}</select>
+      <input type="number" inputmode="decimal" value="${esc(it.price)}" placeholder="Price ₹" onchange="oPrice(${i},this.value)">
+      <button class="orm" onclick="oRm(${i})">×</button></div></div>`;
 }
-function oToggle(pid,checked){
-  oSync();
-  if(checked){ if(!ordDraft.items.find(x=>x.productId===pid)){ const p=db.products.find(x=>x.id===pid); ordDraft.items.push({productId:pid,qty:1,price:p?p.price:""}); } }
-  else ordDraft.items=ordDraft.items.filter(x=>x.productId!==pid);
-  refreshPick(); oTotals();
-}
-function oItem(pid,k,val){ const it=ordDraft.items.find(x=>x.productId===pid); if(it) it[k]= val===""?"":Number(val); oTotals(); }
-function refreshPick(){ const el=$("#o_pick"); if(el) el.innerHTML=db.products.map(p=>oPick(p)).join(""); }
+function oCat(i,val){ oSync(); ordDraft.items[i].category=val; ordDraft.items[i].productId=""; renderOItems(); }
+function oProd(i,val){ oSync(); ordDraft.items[i].productId=val; const p=db.products.find(x=>x.id===val); if(p) ordDraft.items[i].price=p.price; renderOItems(); oTotals(); }
+function oQty(i,val){ ordDraft.items[i].qty=Number(val)||1; oTotals(); }
+function oPrice(i,val){ ordDraft.items[i].price= val===""?"":Number(val); oTotals(); }
+function oAdd(){ oSync(); ordDraft.items.push({category:"",productId:"",qty:1,price:""}); renderOItems(); }
+function oRm(i){ oSync(); ordDraft.items.splice(i,1); if(!ordDraft.items.length) ordDraft.items.push({category:"",productId:"",qty:1,price:""}); renderOItems(); oTotals(); }
+function renderOItems(){ const el=$("#o_items"); if(el) el.innerHTML=ordDraft.items.map((it,i)=>oLine(it,i)).join(""); }
 function oSync(){
   if($("#o_date")) ordDraft.date=$("#o_date").value;
   if($("#o_cust")) ordDraft.customer=$("#o_cust").value;
