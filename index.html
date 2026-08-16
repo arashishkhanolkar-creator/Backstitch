@@ -240,6 +240,7 @@ function migrate(d){
       if(o.contact==null) o.contact=c?(c.phone||c.instagram||""):"";
     }
     o.items=o.items||[];
+    if(o.paid==null) o.paid=(o.status==="completed");
   });
   delete d.customers; delete d.offers;
   return d;
@@ -280,7 +281,7 @@ function purchaseAmount(t){ return (t.items||[]).reduce((s,it)=>s+(Number(it.qty
 function totals(){
   let spend=0; for(const t of db.purchases) spend+=purchaseAmount(t); for(const e of db.expenses) spend+=Number(e.amount)||0;
   let received=0,pending=0;
-  for(const o of db.orders){ if(o.status==="completed") received+=orderTotal(o); else if(o.status==="pending") pending+=orderTotal(o); }
+  for(const o of db.orders){ if(o.status==="cancelled") continue; if(o.paid) received+=orderTotal(o); else pending+=orderTotal(o); }
   let potential=0; for(const p of db.products){ potential+=purchasedQty(p.id)*(Number(p.price)||0); }
   return {spend,received,pending,potential,balance:received-spend,profitLoss:(received+pending)-spend};
 }
@@ -306,11 +307,11 @@ function pie(data,size){
 }
 
 /* ============ NAV ============ */
-const TABS=[["home","Home"],["inventory","Inventory"],["expense","Expense"],["orders","Orders"],["ledger","Ledger"]];
+const TABS=[["home","Home"],["inventory","Inventory"],["expense","Expense"],["orders","Orders"],["sell","Sell"],["ledger","Ledger"]];
 let current="home";
 function renderNav(){ $("#nav").innerHTML=TABS.map(([id,l])=>`<button class="tab ${id===current?'active':''}" onclick="go('${id}')">${l}</button>`).join(""); }
 function go(id){ current=id; renderNav(); render(); window.scrollTo(0,0); }
-function render(){ ({home:vHome,inventory:vInventory,expense:vExpense,orders:vOrders,ledger:vLedger}[current])(); }
+function render(){ ({home:vHome,inventory:vInventory,expense:vExpense,orders:vOrders,sell:vSell,ledger:vLedger}[current])(); }
 function head(t,s,btn){ return `<div class="viewhead"><div><h2>${t}</h2>${s?`<p>${s}</p>`:""}</div>${btn||""}</div>`; }
 function emptyState(msg,cta){ return `<div class="empty"><div class="big">Nothing here yet</div><div>${msg}</div>${cta?`<div style="margin-top:14px">${cta}</div>`:""}</div>`; }
 
@@ -328,17 +329,17 @@ function vHome(){
 
   h+=`<div class="homegrid">`;
 
-  h+=`<div class="homecol"><h3>Pending orders</h3>`;
-  const ords=db.orders.filter(o=>o.status==="pending").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  if(!ords.length) h+=`<div class="card note">No pending orders right now.</div>`;
+  h+=`<div class="homecol"><h3>Open orders</h3>`;
+  const ords=db.orders.filter(o=>o.status!=="cancelled" && !(o.status==="completed" && o.paid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!ords.length) h+=`<div class="card note">Nothing open — all delivered and paid.</div>`;
   else{
-    h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th class="num">Total</th><th>Done</th></tr></thead><tbody>`;
+    h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Customer</th><th>Deliv.</th><th>Paid</th></tr></thead><tbody>`;
     h+=ords.map(o=>{
       const items=(o.items||[]).map(it=>esc(productName(it.productId))+"×"+it.qty).join(", ");
-      const done=o.status==="completed";
-      return `<tr><td>${esc(o.customer||"Customer")}<div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${items||"—"}</div></td>
-        <td class="num">${money(orderTotal(o))}</td>
-        <td><button class="chk ${done?"on":""}" onclick="toggleComplete('${o.id}')">${done?"✓":""}</button></td></tr>`;
+      const deliv=o.status==="completed";
+      return `<tr><td onclick="openOrder('${o.id}')" style="cursor:pointer">${esc(o.customer||"Customer")}<div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${items||"—"} · ${money(orderTotal(o))}</div></td>
+        <td><button class="chk ${deliv?"on":""}" onclick="toggleDelivered('${o.id}')">${deliv?"✓":""}</button></td>
+        <td><button class="chk ${o.paid?"on":""}" onclick="togglePaid('${o.id}')">${o.paid?"✓":""}</button></td></tr>`;
     }).join("");
     h+=`</tbody></table></div>`;
   }
@@ -357,7 +358,9 @@ function vHome(){
   h+=`</div>`;
   $("#view").innerHTML=h;
 }
-function toggleComplete(id){ const o=db.orders.find(x=>x.id===id); if(!o)return; if(o.status==="completed"){ o.status="pending"; delete o.completedDate; } else { o.status="completed"; o.completedDate=today(); } save(); toast(o.status==="completed"?"Completed — added to ledger":"Set back to pending"); render(); }
+function toggleComplete(id){ const o=db.orders.find(x=>x.id===id); if(!o)return; if(o.status==="completed"){ o.status="pending"; delete o.completedDate; } else { o.status="completed"; o.completedDate=today(); } save(); render(); }
+function toggleDelivered(id){ const o=db.orders.find(x=>x.id===id); if(!o)return; if(o.status==="completed"){ o.status="pending"; delete o.completedDate; } else { o.status="completed"; o.completedDate=today(); } save(); toast(o.status==="completed"?"Marked delivered":"Set to not delivered"); render(); }
+function togglePaid(id){ const o=db.orders.find(x=>x.id===id); if(!o)return; o.paid=!o.paid; if(o.paid) o.paidDate=today(); else delete o.paidDate; save(); toast(o.paid?"Payment received":"Marked unpaid"); render(); }
 
 /* ============ INVENTORY ============ */
 function vInventory(){
@@ -541,12 +544,13 @@ function orderTile(o){
   const cls= st==="completed"?"completed":(st==="cancelled"?"cancelled":"pending");
   const label= st==="completed"?"Delivered":(st==="cancelled"?"Cancelled":"Pending");
   const items=(o.items||[]).map(it=>esc(productName(it.productId))+"×"+it.qty).join(", ");
+  const pay= st==="cancelled"?"":(o.paid?"● Paid":"○ Unpaid");
   return `<div class="tile ${cls}" onclick="openOrder('${o.id}')">
     <div class="st">${label}</div>
     <div class="cust">${esc(o.customer||"Customer")}</div>
     <div class="its">${items||"—"}</div>
     <div class="tot">${money(orderTotal(o))}</div>
-    <div class="its">${fmtShort(o.date)}</div>
+    <div class="its">${fmtShort(o.date)}${pay?" · "+pay:""}</div>
   </div>`;
 }
 function vOrders(){
@@ -566,7 +570,8 @@ function delOrder(id){ if(!confirm("Delete this order?")) return; db.orders=db.o
 let ordDraft=null;
 function openOrder(id){
   const o=id?db.orders.find(x=>x.id===id):null;
-  ordDraft=o?structuredClone(o):{id:uid(),date:today(),customer:"",contact:"",items:[{category:"",productId:"",qty:1,price:""}],discountType:"none",discountValue:0,status:"pending"};
+  ordDraft=o?structuredClone(o):{id:uid(),date:today(),customer:"",contact:"",items:[{category:"",productId:"",qty:1,price:""}],discountType:"none",discountValue:0,status:"pending",paid:false};
+  if(ordDraft.paid==null) ordDraft.paid=false;
   if(!ordDraft.items||!ordDraft.items.length) ordDraft.items=[{category:"",productId:"",qty:1,price:""}];
   ordDraft.items.forEach(it=>{ if(it.qty==null||it.qty==="") it.qty=1; if(!it.category && it.productId){ const p=db.products.find(x=>x.id===it.productId); it.category=p?p.category:""; } });
   if(ordDraft.discountType==null){ ordDraft.discountType="none"; ordDraft.discountValue=0; }
@@ -601,6 +606,7 @@ function renderOrder(isEdit){
     <option value="completed" ${ordDraft.status==="completed"?"selected":""}>Delivered</option>
     <option value="cancelled" ${ordDraft.status==="cancelled"?"selected":""}>Cancelled</option>
   </select></div>`;
+  inner+=`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink);font-weight:600"><input type="checkbox" id="o_paid" ${ordDraft.paid?"checked":""} style="width:auto;height:22px"> Payment received</label></div>`;
   inner+=`<div class="modal-actions" style="margin-top:6px">`;
   if(isEdit) inner+=`<button class="btn danger" onclick="delOrder('${ordDraft.id}')">Delete</button>`;
   inner+=`<button class="btn neutral" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveOrder()">${isEdit?"Save order":"Add order"}</button></div>`;
@@ -610,7 +616,7 @@ function oLine(it,i){
   const groups=CATS.map(c=>{
     const ps=[...db.products].filter(p=>p.category===c).sort((a,b)=>a.name.localeCompare(b.name));
     if(!ps.length) return "";
-    return `<optgroup label="${catLabel(c)}">`+ps.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("")+`</optgroup>`;
+    return `<optgroup label="${catLabel(c)}">`+ps.map(p=>`<option value="${p.id}" ${it.productId===p.id?"selected":""}>${esc(p.name)} · ${availableQty(p.id)} in stock</option>`).join("")+`</optgroup>`;
   }).join("");
   const qtys=Array.from({length:50},(_,n)=>n+1).map(n=>`<option value="${n}" ${Number(it.qty)===n?"selected":""}>${n}</option>`).join("");
   return `<div class="oitem">
@@ -630,6 +636,7 @@ function oSync(){
   if($("#o_cust")) ordDraft.customer=$("#o_cust").value;
   if($("#o_contact")) ordDraft.contact=$("#o_contact").value;
   if($("#o_status")) ordDraft.status=$("#o_status").value;
+  if($("#o_paid")) ordDraft.paid=$("#o_paid").checked;
   oSyncDiscount();
 }
 function oSyncDiscount(){
@@ -654,12 +661,24 @@ function saveOrder(){
   if(!ordDraft.items.length){ toast("Add at least one product"); return; }
   if(!ordDraft.customer) ordDraft.customer="Customer";
   if(ordDraft.status==="completed"){ if(!ordDraft.completedDate) ordDraft.completedDate=today(); } else { delete ordDraft.completedDate; }
+  if(ordDraft.paid){ if(!ordDraft.paidDate) ordDraft.paidDate=today(); } else { delete ordDraft.paidDate; }
   const existing=db.orders.find(x=>x.id===ordDraft.id);
   if(existing) Object.assign(existing,ordDraft); else db.orders.push(ordDraft);
   save(); closeModal(); toast(existing?"Order saved":"Order added"); render();
 }
 
 /* ============ LEDGER ============ */
+function vSell(){
+  let h=head("Sell summary","Delivered items · best sellers first");
+  const sold={},rev={};
+  db.orders.forEach(o=>{ if(o.status==="completed") (o.items||[]).forEach(it=>{ sold[it.productId]=(sold[it.productId]||0)+(Number(it.qty)||0); rev[it.productId]=(rev[it.productId]||0)+(Number(it.qty)||0)*(Number(it.price)||0); }); });
+  const rows=db.products.map(p=>({p,qty:sold[p.id]||0,rev:rev[p.id]||0})).filter(r=>r.qty>0).sort((a,b)=>(b.qty-a.qty)||(b.rev-a.rev));
+  if(!rows.length){ $("#view").innerHTML=h+emptyState("No delivered orders yet. Mark orders delivered to see sales here.",""); return; }
+  h+=`<div class="tblwrap"><table class="tbl"><thead><tr><th>Product</th><th>Category</th><th class="num">Sold</th><th class="num">Revenue</th></tr></thead><tbody>`;
+  h+=rows.map(r=>`<tr><td>${esc(r.p.name)}</td><td>${catLabel(r.p.category)}</td><td class="num"><b>${r.qty}</b></td><td class="num">${money(r.rev)}</td></tr>`).join("");
+  h+=`</tbody></table></div>`;
+  $("#view").innerHTML=h;
+}
 function vLedger(){
   const t=totals();
   const pdfBtn=`<button class="btn ghost small" onclick="printLedger()">⬇︎ PDF</button>`;
@@ -668,7 +687,7 @@ function vLedger(){
   const rows=[];
   db.purchases.forEach(tr=>rows.push({date:tr.date,desc:"Stock purchase — "+((tr.items||[]).map(it=>productName(it.productId)+"×"+it.qty).join(", ")||"—"),out:purchaseAmount(tr)}));
   db.expenses.forEach(e=>rows.push({date:e.date,desc:(e.category?cap(e.category):"Expense")+(e.notes?" — "+e.notes:""),out:Number(e.amount)||0}));
-  db.orders.forEach(o=>{ if(o.status==="completed") rows.push({date:o.completedDate||o.date,desc:"Order — "+(o.customer||"Customer"),in:orderTotal(o)}); });
+  db.orders.forEach(o=>{ if(o.status!=="cancelled" && o.paid) rows.push({date:o.paidDate||o.date,desc:"Order — "+(o.customer||"Customer"),in:orderTotal(o)}); });
   if(!rows.length){ $("#view").innerHTML=h+`<div class="empty"><div class="big">No entries yet</div><div>Purchases and completed orders will appear here.</div></div>`; return; }
   rows.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   h+=rows.map(r=>`<div class="ledgerrow"><div><div class="desc">${esc(r.desc)}</div><div class="date">${fmtDate(r.date)}</div></div>
@@ -680,7 +699,7 @@ function printLedger(){
   const rows=[];
   db.purchases.forEach(tr=>rows.push({date:tr.date,desc:"Stock purchase — "+((tr.items||[]).map(it=>productName(it.productId)+"×"+it.qty).join(", ")||"—"),out:purchaseAmount(tr)}));
   db.expenses.forEach(e=>rows.push({date:e.date,desc:(e.category?cap(e.category):"Expense")+(e.notes?" — "+e.notes:""),out:Number(e.amount)||0}));
-  db.orders.forEach(o=>{ if(o.status==="completed") rows.push({date:o.completedDate||o.date,desc:"Order — "+(o.customer||"Customer"),in:orderTotal(o)}); });
+  db.orders.forEach(o=>{ if(o.status!=="cancelled" && o.paid) rows.push({date:o.paidDate||o.date,desc:"Order — "+(o.customer||"Customer"),in:orderTotal(o)}); });
   rows.sort((a,b)=>(a.date||"").localeCompare(b.date||""));
   let running=0,totIn=0,totOut=0;
   const body=rows.map(r=>{ const inc=r.in||0,out=r.out||0; running+=inc-out; totIn+=inc; totOut+=out;
